@@ -54,7 +54,10 @@ export const queueTransaction = async (transaction) => {
     const store = tx.objectStore('pendingTransactions');
     store.add({
         ...transaction,
-        queuedAt: new Date().toISOString()
+        queuedAt: new Date().toISOString(),
+        retryCount: 0,
+        lastAttemptAt: null,
+        lastError: null
     });
 
     return new Promise((resolve) => {
@@ -94,5 +97,27 @@ export const clearPendingTransaction = async (id) => {
 
     return new Promise((resolve) => {
         tx.oncomplete = () => resolve(true);
+    });
+};
+
+export const updatePendingTransaction = async (id, updates) => {
+    const db = await initDB();
+    const tx = db.transaction('pendingTransactions', 'readwrite');
+    const store = tx.objectStore('pendingTransactions');
+    const request = store.get(id);
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const existingData = request.result;
+            if (!existingData) {
+                reject(new Error('Transaction not found in pending queue'));
+                return;
+            }
+            const updatedData = { ...existingData, ...updates };
+            const updateRequest = store.put(updatedData);
+            updateRequest.onsuccess = () => resolve(true);
+            updateRequest.onerror = () => reject(updateRequest.error);
+        };
+        request.onerror = () => reject(request.error);
     });
 };

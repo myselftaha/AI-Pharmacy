@@ -3827,6 +3827,152 @@ app.get('/api/transactions/:id', async (req, res) => {
     }
 });
 
+// Create new transaction (with idempotency for offline sync)
+app.post('/api/transactions', authenticateToken, async (req, res) => {
+    try {
+        const {
+            transactionId,
+            type = 'Sale',
+            customer,
+            items,
+            subtotal,
+            platformFee = 0,
+            discount = 0,
+            tax = 0,
+            total,
+            voucher,
+            paymentMethod = 'Cash',
+            processedBy = 'Admin'
+        } = req.body;
+
+        // Validation
+        if (!transactionId) {
+            return res.status(400).json({ message: 'transactionId is required' });
+        }
+        if (!customer || !customer.name) {
+            return res.status(400).json({ message: 'customer.name is required' });
+        }
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'items array is required and must not be empty' });
+        }
+        if (subtotal === undefined || total === undefined) {
+            return res.status(400).json({ message: 'subtotal and total are required' });
+        }
+
+        // ✅ IDEMPOTENCY CHECK - Prevent duplicate transactions from offline sync
+        const existingTransaction = await Transaction.findOne({ transactionId });
+        if (existingTransaction) {
+            console.log(`[SYNC] Duplicate transactionId detected: ${transactionId}. Returning existing transaction.`);
+            return res.status(200).json(existingTransaction); // Return existing, don't create duplicate
+        }
+
+        // Generate unique bill number
+        const lastTransaction = await Transaction.findOne().sort({ billNumber: -1 });
+        const nextBillNumber = lastTransaction && lastTransaction.billNumber ? lastTransaction.billNumber + 1 : 1001;
+
+        // Generate invoice number
+        const invoiceNumber = `INV-${new Date().getFullYear()}-${String(nextBillNumber).padStart(5, '0')}`;
+
+        // Create transaction document
+        const newTransaction = new Transaction({
+            transactionId,
+            billNumber: nextBillNumber,
+            invoiceNumber,
+            type,
+            customer: {
+                id: customer.id || null,
+                name: customer.name,
+                email: customer.email || '',
+                phone: customer.phone || '',
+                doctorName: customer.doctorName || '',
+                billDate: customer.billDate || new Date().toISOString().split('T')[0]
+            },
+            items: items.map(item => ({
+                id: item.medicineId || item.id,
+                name: item.medicineName || item.name,
+                price: item.unitPrice || item.price,
+                quantity: item.billedQuantity || item.quantity,
+                subtotal: item.netItemTotal || (item.unitPrice * item.billedQuantity)
+            })),
+            subtotal,
+            platformFee,
+            discount,
+            tax,
+            total,
+            voucher: voucher || null,
+            paymentMethod,
+            processedBy,
+            status: 'Posted'
+        });
+
+        // Save transaction
+        const savedTransaction = await newTransaction.save();
+        console.log(`[SYNC] Transaction created: ${transactionId} -> Bill #${nextBillNumber}`);
+
+        // Update stock for Sales (reduce) and Returns (increase if restocking)
+        if (type === 'Sale') {
+            for (const item of items) {
+                const medicineId = item.medicineId || item.id;
+                let medicine = null;
+
+                // Try to find medicine by numeric ID or ObjectId
+                if (typeof medicineId === 'number' || (typeof medicineId === 'string' && medicineId.match(/^\d+$/))) {
+                    medicine = await Medicine.findOne({ id: parseInt(medicineId) });
+                }
+                if (!medicine && typeof medicineId === 'string' && medicineId.match(/^[0-9a-fA-F]{24}$/)) {
+                    medicine = await Medicine.findById(medicineId);
+                }
+
+                if (medicine) {
+                    const quantityToReduce = item.billedQuantity || item.quantity || 0;
+                    medicine.stock = Math.max(0, medicine.stock - quantityToReduce);
+                    await medicine.save();
+                    console.log(`[STOCK] Reduced ${medicine.name} stock by ${quantityToReduce}. New stock: ${medicine.stock}`);
+                } else {
+                    console.warn(`[STOCK] Medicine not found: ${medicineId}`);
+                }
+            }
+        } else if (type === 'Return') {
+            // Handle returns - increase stock if restocking
+            for (const item of items) {
+                if (item.restock === false) continue; // Skip write-offs
+
+                const medicineId = item.medicineId || item.id;
+                let medicine = null;
+
+                if (typeof medicineId === 'number' || (typeof medicineId === 'string' && medicineId.match(/^\d+$/))) {
+                    medicine = await Medicine.findOne({ id: parseInt(medicineId) });
+                }
+                if (!medicine && typeof medicineId === 'string' && medicineId.match(/^[0-9a-fA-F]{24}$/)) {
+                    medicine = await Medicine.findById(medicineId);
+                }
+
+                if (medicine) {
+                    const quantityToAdd = item.billedQuantity || item.quantity || 0;
+                    medicine.stock += quantityToAdd;
+                    await medicine.save();
+                    console.log(`[STOCK] Restocked ${medicine.name} by ${quantityToAdd}. New stock: ${medicine.stock}`);
+                }
+            }
+        }
+
+        // Update customer stats if customer has an ID
+        if (customer.id && type === 'Sale') {
+            const existingCustomer = await Customer.findById(customer.id);
+            if (existingCustomer) {
+                existingCustomer.totalPurchases = (existingCustomer.totalPurchases || 0) + 1;
+                existingCustomer.totalSpent = (existingCustomer.totalSpent || 0) + total;
+                await existingCustomer.save();
+            }
+        }
+
+        res.status(201).json(savedTransaction);
+    } catch (err) {
+        console.error('[TRANSACTION ERROR]', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Get transaction statistics
 // Get transaction statistics (Summary Bar)
 app.get('/api/transactions/stats/summary', async (req, res) => {
