@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '../context/ToastContext';
-import { Search, Plus, Filter, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, Package, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import GroupedMedicineTable from '../components/supplies/GroupedMedicineTable';
 import MedicineDetailsModal from '../components/supplies/MedicineDetailsModal';
 import AddMedicineModal from '../components/supplies/AddMedicineModal';
 import EditSupplyModal from '../components/supplies/EditSupplyModal';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
+import ExcelImportModal from '../components/medicines/ExcelImportModal';
 import API_URL from '../config/api';
 
 const Medicines = () => {
@@ -19,6 +20,7 @@ const Medicines = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     // Grouping State
     const [selectedMedicineGroup, setSelectedMedicineGroup] = useState(null);
@@ -305,6 +307,34 @@ const Medicines = () => {
         setIsDetailsModalOpen(true);
     };
 
+    const handleExcelImport = async (excelData) => {
+        try {
+            const response = await fetch(`${API_URL}/api/medicines/bulk-import`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ medicines: excelData })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                showToast(result.message, result.results.failed > 0 ? 'warning' : 'success');
+                await fetchMedicines(); // Refresh medicine list
+                return result;
+            } else {
+                showToast(result.message || 'Import failed', 'error');
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            console.error('Error importing medicines:', error);
+            showToast('Error importing medicines', 'error');
+            throw error;
+        }
+    };
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
@@ -327,6 +357,13 @@ const Medicines = () => {
                             className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-80 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
                         />
                     </div>
+                    <button
+                        onClick={() => setIsImportModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+                    >
+                        <Upload size={18} />
+                        <span>Import Excel</span>
+                    </button>
                     <button
                         onClick={() => setIsAddModalOpen(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20"
@@ -434,6 +471,12 @@ const Medicines = () => {
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={confirmDelete}
                 itemName={medicineToDelete?.name}
+            />
+
+            <ExcelImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleExcelImport}
             />
         </div>
     );

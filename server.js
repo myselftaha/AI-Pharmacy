@@ -1976,6 +1976,112 @@ app.post('/api/medicines', authenticateToken, async (req, res) => {
     }
 });
 
+// Bulk import medicines from Excel
+app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
+    try {
+        const { medicines } = req.body;
+
+        if (!Array.isArray(medicines) || medicines.length === 0) {
+            return res.status(400).json({ message: 'Invalid data: medicines array is required' });
+        }
+
+        const results = {
+            total: medicines.length,
+            successful: 0,
+            failed: 0,
+            errors: [],
+            imported: []
+        };
+
+        // Get the last medicine ID for auto-increment
+        const lastMedicine = await Medicine.findOne().sort({ id: -1 });
+        let nextId = lastMedicine && lastMedicine.id ? lastMedicine.id + 1 : 1;
+
+        for (let i = 0; i < medicines.length; i++) {
+            const medicineData = medicines[i];
+
+            try {
+                // Basic validation
+                if (!medicineData.name || medicineData.name.trim() === '') {
+                    results.failed++;
+                    results.errors.push({
+                        row: i + 2, // Excel row (accounting for header)
+                        name: medicineData.name || 'Unknown',
+                        error: 'Name is required'
+                    });
+                    continue;
+                }
+
+                // Check for duplicates by name
+                const existingMedicine = await Medicine.findOne({
+                    name: { $regex: new RegExp(`^${medicineData.name.trim()}$`, 'i') }
+                });
+
+                if (existingMedicine) {
+                    results.failed++;
+                    results.errors.push({
+                        row: i + 2,
+                        name: medicineData.name,
+                        error: 'Medicine already exists'
+                    });
+                    continue;
+                }
+
+                // Create new medicine with auto-incremented ID
+                const newMedicine = new Medicine({
+                    id: nextId++,
+                    name: medicineData.name.trim(),
+                    description: medicineData.description || '',
+                    price: parseFloat(medicineData.price) || 0,
+                    stock: parseInt(medicineData.stock) || 0,
+                    unit: medicineData.unit || 'pcs',
+                    netContent: medicineData.netContent || '',
+                    category: medicineData.category || 'General',
+                    costPrice: parseFloat(medicineData.costPrice) || 0,
+                    minStock: parseInt(medicineData.minStock) || 10,
+                    supplier: medicineData.supplier || '',
+                    formulaCode: medicineData.formulaCode || '',
+                    genericName: medicineData.genericName || '',
+                    shelfLocation: medicineData.shelfLocation || '',
+                    mrp: parseFloat(medicineData.mrp) || 0,
+                    sellingPrice: parseFloat(medicineData.sellingPrice) || parseFloat(medicineData.price) || 0,
+                    packSize: parseInt(medicineData.packSize) || 1,
+                    status: medicineData.status || 'Active',
+                    inInventory: true,
+                    expiryDate: medicineData.expiryDate ? new Date(medicineData.expiryDate) : null
+                });
+
+                const savedMedicine = await newMedicine.save();
+                results.successful++;
+                results.imported.push({
+                    row: i + 2,
+                    name: savedMedicine.name,
+                    id: savedMedicine.id
+                });
+
+            } catch (error) {
+                results.failed++;
+                results.errors.push({
+                    row: i + 2,
+                    name: medicineData.name || 'Unknown',
+                    error: error.message
+                });
+            }
+        }
+
+        console.log(`[BULK IMPORT] Total: ${results.total}, Success: ${results.successful}, Failed: ${results.failed}`);
+
+        res.status(200).json({
+            message: `Import complete: ${results.successful} successful, ${results.failed} failed`,
+            results
+        });
+
+    } catch (err) {
+        console.error('[BULK IMPORT ERROR]', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Update medicine
 app.put('/api/medicines/:id', authenticateToken, async (req, res) => {
     try {
