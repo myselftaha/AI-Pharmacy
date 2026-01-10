@@ -25,7 +25,12 @@ import ExpiryManagement from './pages/ExpiryManagement';
 import Loader from './components/common/Loader';
 import { ToastProvider } from './context/ToastContext';
 import { USER_ROLES } from './config/roles';
+
 import SyncManager from './components/common/SyncManager';
+import { SettingsProvider } from './context/SettingsContext';
+import Settings from './pages/Settings';
+import { NotificationProvider } from './context/NotificationContext';
+import Notifications from './pages/Notifications';
 
 function App() {
   const [setupStatus, setSetupStatus] = useState({ isSetupCompleted: false, loading: true });
@@ -93,87 +98,97 @@ function App() {
 
   return (
     <ToastProvider>
-      <SyncManager>
-        <Router>
-          <Routes>
-            {/* Setup & Login - Mutual Exclusivity based on setup status */}
-            <Route
-              path="/setup"
-              element={isSetup ? <Navigate to="/login" replace /> : <OwnerSetup onComplete={() => setSetupStatus({ isSetupCompleted: true, loading: false })} />}
-            />
-            <Route
-              path="/login"
-              element={!isSetup ? <Navigate to="/setup" replace /> : <LoginPage />}
-            />
+      <SettingsProvider>
+        <SyncManager>
+          <NotificationProvider>
+            <Router>
+              <Routes>
+                {/* Setup & Login - Mutual Exclusivity based on setup status */}
+                <Route
+                  path="/setup"
+                  element={isSetup ? <Navigate to="/login" replace /> : <OwnerSetup onComplete={() => setSetupStatus({ isSetupCompleted: true, loading: false })} />}
+                />
+                <Route
+                  path="/login"
+                  element={!isSetup ? <Navigate to="/setup" replace /> : <LoginPage />}
+                />
 
-            {/* Protected Routes - Only accessible if setup is completed */}
-            <Route element={!isSetup ? <Navigate to="/setup" replace /> : <ProtectedRoute />}>
-              <Route element={<MainLayout />}>
-                <Route path="/" element={<RootRedirect />} />
+                {/* Protected Routes - Only accessible if setup is completed */}
+                <Route element={!isSetup ? <Navigate to="/setup" replace /> : <ProtectedRoute />}>
+                  <Route element={<MainLayout />}>
+                    <Route path="/" element={<RootRedirect />} />
 
-                {/* Dashboard: Owner, Manager */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="dashboard" element={<Dashboard />} />
+                    {/* Dashboard: Owner, Manager */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="dashboard" element={<Dashboard />} />
+                    </Route>
+
+                    {/* Sales/POS: Owner, Manager, Pharmacist, Counter Salesman */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.COUNTER_SALESMAN, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="pos" element={<Home />} />
+                      <Route path="customers" element={<Customers />} />
+                    </Route>
+
+                    {/* Admin/Owner Restricted Routes */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="users" element={<Users />} />
+                      <Route path="loaders" element={<LoaderDemo />} />
+                      <Route path="settings" element={<Settings />} />
+                    </Route>
+
+                    {/* Staff: Owner, Manager */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="staff" element={<Staff />} />
+                    </Route>
+
+                    {/* Financial/Reports: Owner, Accountant */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="reports" element={<Report />} />
+                    </Route>
+
+                    {/* Vouchers, Cash Drawer: Owner, Manager, Accountant */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="vouchers" element={<Vouchers />} />
+                      <Route path="cash-drawer" element={<CashDrawer />} />
+                    </Route>
+
+                    {/* Inventory/Medicines: Owner, Manager, Pharmacist */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="medicines" element={<Medicines />} />
+                      <Route path="return" element={<Return />} />
+                      <Route path="expiry" element={<ExpiryManagement />} />
+                    </Route>
+
+                    {/* Inventory View: Owner, Manager, Pharmacist, Helper */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.HELPER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="inventory" element={<Inventory />} />
+                    </Route>
+
+                    {/* Distributors: Owner, Manager, Accountant */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="suppliers" element={<Suppliers />} />
+                      <Route path="suppliers/:id" element={<SupplierDetails />} />
+                    </Route>
+
+                    {/* History: Owner, Manager, Pharmacist, Salesman (Limited), Accountant */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.COUNTER_SALESMAN, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="history" element={<History />} />
+                    </Route>
+
+                    {/* Notifications: Accessible to all authorized roles */}
+                    <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.COUNTER_SALESMAN, USER_ROLES.ACCOUNTANT, USER_ROLES.HELPER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
+                      <Route path="notifications" element={<Notifications />} />
+                    </Route>
+
+                  </Route>
                 </Route>
-
-                {/* Sales/POS: Owner, Manager, Pharmacist, Counter Salesman */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.COUNTER_SALESMAN, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="pos" element={<Home />} />
-                  <Route path="customers" element={<Customers />} />
-                </Route>
-
-                {/* Admin/Owner Restricted Routes */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="users" element={<Users />} />
-                  <Route path="loaders" element={<LoaderDemo />} />
-                </Route>
-
-                {/* Staff: Owner, Manager */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="staff" element={<Staff />} />
-                </Route>
-
-                {/* Financial/Reports: Owner, Accountant */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="reports" element={<Report />} />
-                </Route>
-
-                {/* Vouchers, Cash Drawer: Owner, Manager, Accountant */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="vouchers" element={<Vouchers />} />
-                  <Route path="cash-drawer" element={<CashDrawer />} />
-                </Route>
-
-                {/* Inventory/Medicines: Owner, Manager, Pharmacist */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="medicines" element={<Medicines />} />
-                  <Route path="return" element={<Return />} />
-                  <Route path="expiry" element={<ExpiryManagement />} />
-                </Route>
-
-                {/* Inventory View: Owner, Manager, Pharmacist, Helper */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.HELPER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="inventory" element={<Inventory />} />
-                </Route>
-
-                {/* Distributors: Owner, Manager, Accountant */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="suppliers" element={<Suppliers />} />
-                  <Route path="suppliers/:id" element={<SupplierDetails />} />
-                </Route>
-
-                {/* History: Owner, Manager, Pharmacist, Salesman (Limited), Accountant */}
-                <Route element={<ProtectedRoute roles={[USER_ROLES.OWNER, USER_ROLES.STORE_MANAGER, USER_ROLES.PHARMACIST, USER_ROLES.COUNTER_SALESMAN, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]} />}>
-                  <Route path="history" element={<History />} />
-                </Route>
-
-              </Route>
-            </Route>
-            {/* Global Catch-all */}
-            <Route path="*" element={<Navigate to={isSetup ? "/" : "/setup"} replace />} />
-          </Routes>
-        </Router>
-      </SyncManager>
+                {/* Global Catch-all */}
+                <Route path="*" element={<Navigate to={isSetup ? "/" : "/setup"} replace />} />
+              </Routes>
+            </Router>
+          </NotificationProvider>
+        </SyncManager>
+      </SettingsProvider>
     </ToastProvider>
   );
 }

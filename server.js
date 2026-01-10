@@ -71,7 +71,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
     origin: "*"
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Debug Middleware
 app.use(async (req, res, next) => {
@@ -438,6 +439,141 @@ cashDrawerLogSchema.index({ date: 1 });
 cashDrawerLogSchema.index({ timestamp: -1 });
 
 const CashDrawerLog = mongoose.model('CashDrawerLog', cashDrawerLogSchema);
+
+// Settings Schema
+const settingsSchema = new mongoose.Schema({
+    // Store Information
+    storeName: { type: String, default: 'AI Pharmacy' },
+    storeAddress: { type: String, default: '' },
+    storePhone: { type: String, default: '' },
+    storeEmail: { type: String, default: '' },
+    storeWebsite: { type: String, default: '' },
+    storeLogo: { type: String, default: '' }, // URL or base64
+    registrationNumber: { type: String, default: '' },
+
+    // Receipt Settings
+    receiptHeader: { type: String, default: 'Thank You for Your Purchase!' },
+    receiptFooter: { type: String, default: 'Please visit again' },
+    receiptTerms: { type: String, default: 'All sales are final' },
+    showLogoOnReceipt: { type: Boolean, default: true },
+    showQRCode: { type: Boolean, default: false },
+    receiptTemplate: { type: String, default: 'detailed' }, // simple/detailed
+
+    // Tax & Pricing
+    taxRate: { type: Number, default: 0 }, // percentage
+    taxInclusive: { type: Boolean, default: false },
+    currency: { type: String, default: 'Rs' },
+    currencyPosition: { type: String, default: 'before' }, // before/after
+    priceRounding: { type: Number, default: 1 }, // 0.5, 1, 5, 10
+    maxDiscountPercent: { type: Number, default: 50 },
+
+    // Stock Management
+    lowStockThreshold: { type: Number, default: 10 },
+    autoReorder: { type: Boolean, default: false },
+    stockAlertFrequency: { type: String, default: 'daily' },
+    outOfStockBehavior: { type: String, default: 'allow' }, // allow/block
+    expiryAlertDays: { type: Number, default: 30 },
+
+    // Notifications
+    emailNotifications: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: false },
+    lowStockAlerts: { type: Boolean, default: true },
+    dailySalesSummary: { type: Boolean, default: true },
+    expiryAlerts: { type: Boolean, default: true },
+
+    // Business Settings
+    fiscalYearStart: { type: String, default: '04-01' }, // MM-DD
+    workingHoursStart: { type: String, default: '09:00' },
+    workingHoursEnd: { type: String, default: '21:00' },
+    workingDays: { type: [String], default: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] },
+    timezone: { type: String, default: 'Asia/Karachi' },
+
+    // System Settings
+    language: { type: String, default: 'en' },
+    dateFormat: { type: String, default: 'DD/MM/YYYY' },
+    timeFormat: { type: String, default: '12h' },
+    backupFrequency: { type: String, default: 'daily' },
+
+    // Audit
+    lastUpdated: { type: Date, default: Date.now },
+    updatedBy: { type: String, default: 'Admin' }
+}, { timestamps: true });
+
+const Settings = mongoose.model('Settings', settingsSchema);
+
+// Notification Schema
+const notificationSchema = new mongoose.Schema({
+    type: { type: String, enum: ['LOW_STOCK', 'EXPIRY', 'SYSTEM', 'SALE'], required: true },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    isRead: { type: Boolean, default: false },
+    priority: { type: String, enum: ['high', 'medium', 'low'], default: 'medium' }, // high = red, medium = yellow/blue
+    relatedId: { type: mongoose.Schema.Types.ObjectId, refPath: 'onModel' }, // Optional link to Medicine/Transaction
+    onModel: { type: String, enum: ['Medicine', 'Transaction', 'User'] },
+    createdAt: { type: Date, default: Date.now }
+});
+// Index for faster queries
+notificationSchema.index({ isRead: 1, createdAt: -1 });
+
+const Notification = mongoose.model('Notification', notificationSchema);
+
+// --- SETTINGS ROUTES ---
+
+// Get all settings (Initialize default if not exists)
+app.get('/api/settings', authenticateToken, async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+
+        // Initialize default settings if none exist
+        if (!settings) {
+            settings = new Settings();
+            await settings.save();
+            console.log('Initialized default settings');
+        }
+
+        res.json(settings);
+    } catch (err) {
+        console.error('Error fetching settings:', err);
+        res.status(500).json({ message: 'Error fetching settings' });
+    }
+});
+
+// Update settings
+app.post('/api/settings', authenticateToken, async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+
+        if (!settings) {
+            settings = new Settings(req.body);
+        } else {
+            // Update fields
+            Object.assign(settings, req.body);
+        }
+
+        settings.lastUpdated = new Date();
+        // optionally set updatedBy from req.user
+
+        await settings.save();
+        res.json({ message: 'Settings updated successfully', settings });
+    } catch (err) {
+        console.error('Error updating settings:', err);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+});
+
+// Restore default settings
+app.post('/api/settings/restore-defaults', authenticateToken, async (req, res) => {
+    try {
+        await Settings.deleteMany({});
+        const newSettings = new Settings();
+        await newSettings.save();
+        res.json({ message: 'Settings restored to defaults', settings: newSettings });
+    } catch (err) {
+        console.error('Error restoring defaults:', err);
+        res.status(500).json({ message: 'Error restoring defaults' });
+    }
+});
+
 
 // --- CASH DRAWER ROUTES ---
 
@@ -2052,6 +2188,27 @@ app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
                 });
 
                 const savedMedicine = await newMedicine.save();
+
+                // Create Initial Supply Record (Opening Stock) so it appears in the list
+                const newSupply = new Supply({
+                    medicineId: savedMedicine.id.toString(),
+                    name: savedMedicine.name,
+                    batchNumber: `IMPORT-${new Date().getTime()}`,
+                    supplierName: medicineData.supplier || 'Opening Stock',
+                    purchaseCost: savedMedicine.costPrice || 0,
+                    purchaseInvoiceNumber: 'BULK-IMPORT',
+                    expiryDate: savedMedicine.expiryDate,
+                    quantity: savedMedicine.stock, // In units
+                    packSize: savedMedicine.packSize || 1,
+                    mrp: savedMedicine.mrp || 0,
+                    sellingPrice: savedMedicine.sellingPrice || 0,
+                    category: savedMedicine.category,
+                    unit: savedMedicine.unit,
+                    netContent: savedMedicine.netContent,
+                    addedDate: new Date()
+                });
+                await newSupply.save();
+
                 results.successful++;
                 results.imported.push({
                     row: i + 2,
@@ -2628,12 +2785,15 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
                     medicine.stock = Math.max(0, (medicine.stock || 0) - deduction);
                     await medicine.save();
                     console.log(`Medicine updated: ${medicine.name}. New Stock: ${medicine.stock}`);
+
+                    // Trigger Low Stock Check
+                    await checkLowStock(medicine);
+
                 } else {
                     console.log(`❌ Medicine NOT found for item:`, item);
                 }
             }
         }
-
 
         res.status(201).json(savedTransaction);
     } catch (err) {
@@ -5421,6 +5581,64 @@ async function updateMedicineStockFromBatches(medicineId) {
     }
 }
 
+
+
+// Helper: Check for Low Stock and Create Notification
+const checkLowStock = async (medicine) => {
+    try {
+        const minStock = medicine.minStock || 10;
+        console.log(`[Low Stock Check] ${medicine.name}: Stock=${medicine.stock}, Min=${minStock}`);
+
+        if (medicine.stock <= minStock) {
+            // Check if unread notification already exists to prevent spam
+            // We use relatedId AND isRead: false to avoid duplicate alerts for the same low stock event
+            const existingNotif = await Notification.findOne({
+                type: 'LOW_STOCK',
+                relatedId: medicine._id,
+                isRead: false
+            });
+
+            if (!existingNotif) {
+                const notification = new Notification({
+                    type: 'LOW_STOCK',
+                    title: 'Low Stock Alert',
+                    message: `Stock for ${medicine.name} is low (${medicine.stock} units). Min: ${minStock}`,
+                    priority: 'high',
+                    relatedId: medicine._id,
+                    onModel: 'Medicine',
+                    isRead: false
+                });
+                const saved = await notification.save();
+                console.log(`[Low Stock] Notification created for ${medicine.name} (ID: ${saved._id})`);
+                return saved;
+            } else {
+                console.log(`[Low Stock] Notification already exists for ${medicine.name}`);
+                return existingNotif;
+            }
+        }
+        return null; // Not low stock
+    } catch (err) {
+        console.error('Error checking low stock:', err);
+    }
+};
+
+// Test Route for Debugging
+app.post('/api/test/low-stock/:id', async (req, res) => {
+    try {
+        const medicine = await Medicine.findById(req.params.id);
+        if (!medicine) return res.status(404).json({ message: 'Medicine not found' });
+
+        // Force update stock to low to test
+        // medicine.stock = 5; 
+        console.log('Testing low stock for:', medicine.name);
+
+        const result = await checkLowStock(medicine);
+        res.json({ message: 'Check ran', result });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // ==================== LOW STOCK INTELLIGENCE API ROUTES ====================
 
 // Get inventory settings
@@ -6457,7 +6675,18 @@ ${data.topUrgent.map((item, i) =>
 Check dashboard: /expiry`;
 
                 await sendWhatsAppAlert(message);
-                console.log('[Automated Expiry Check] Alert sent successfully');
+
+                // Create System Notification
+                const notification = new Notification({
+                    type: 'EXPIRY',
+                    title: 'Daily Expiry Alert',
+                    message: `${data.expiredCount} items expired, ${data.criticalCount} expiring soon. Check inventory.`,
+                    priority: 'high',
+                    isRead: false
+                });
+                await notification.save();
+
+                console.log('[Automated Expiry Check] Alert sent & Notification created successfully');
             } else {
                 console.log('[Automated Expiry Check] No urgent alerts today ✅');
             }
@@ -6523,7 +6752,78 @@ app.post('/api/system/hard-reset', async (req, res) => {
         res.status(500).json({ message: 'Reset failed', error: err.message });
     }
 });
+// --- NOTIFICATION ROUTES ---
 
+// Get Notifications (Paginated)
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const notifications = await Notification.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Notification.countDocuments();
+        const unreadCount = await Notification.countDocuments({ isRead: false });
+
+        res.json({
+            notifications,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+            unreadCount
+        });
+    } catch (err) {
+        console.error('Error fetching notifications:', err);
+        res.status(500).json({ message: 'Error fetching notifications' });
+    }
+});
+
+// Get Unread Count (Lightweight)
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+    try {
+        const count = await Notification.countDocuments({ isRead: false });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching count' });
+    }
+});
+
+// Mark single as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+    try {
+        await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating notification' });
+    }
+});
+
+// Mark all as read
+app.put('/api/notifications/mark-all-read', authenticateToken, async (req, res) => {
+    try {
+        await Notification.updateMany({ isRead: false }, { isRead: true });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: 'Error clearing notifications' });
+    }
+});
+
+// Create Notification (Internal/Test)
+app.post('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const { type, title, message, priority } = req.body;
+        const notification = new Notification({
+            type, title, message, priority
+        });
+        await notification.save();
+        res.json(notification);
+    } catch (err) {
+        res.status(500).json({ message: 'Error creating notification' });
+    }
+});
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     // Basic local connection for standalone run
     connectDB()
@@ -6542,5 +6842,78 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
         })
         .catch(err => console.error('MongoDB Connection Error:', err));
 }
+
+// --- NOTIFICATION ROUTES ---
+
+// Get Notifications (Paginated)
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const notifications = await Notification.find()
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Notification.countDocuments();
+        const unreadCount = await Notification.countDocuments({ isRead: false });
+
+        res.json({
+            notifications,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+            unreadCount
+        });
+    } catch (err) {
+        console.error('Error fetching notifications:', err);
+        res.status(500).json({ message: 'Error fetching notifications' });
+    }
+});
+
+// Get Unread Count (Lightweight)
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+    try {
+        const count = await Notification.countDocuments({ isRead: false });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching count' });
+    }
+});
+
+// Mark single as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+    try {
+        await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating notification' });
+    }
+});
+
+// Mark all as read
+app.put('/api/notifications/mark-all-read', authenticateToken, async (req, res) => {
+    try {
+        await Notification.updateMany({ isRead: false }, { isRead: true });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: 'Error clearing notifications' });
+    }
+});
+
+// Create Notification (Internal/Test)
+app.post('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const { type, title, message, priority } = req.body;
+        const notification = new Notification({
+            type, title, message, priority
+        });
+        await notification.save();
+        res.json(notification);
+    } catch (err) {
+        res.status(500).json({ message: 'Error creating notification' });
+    }
+});
 
 export default app;

@@ -16,7 +16,8 @@ import {
     DollarSign,
     FileText,
     Wallet,
-    Calendar
+    Calendar,
+    Settings as SettingsIcon
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -115,6 +116,12 @@ const NAV_SECTIONS = [
                 label: 'Reports',
                 path: '/reports',
                 allowedRoles: [USER_ROLES.OWNER, USER_ROLES.ACCOUNTANT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]
+            },
+            {
+                icon: SettingsIcon,
+                label: 'Settings',
+                path: '/settings',
+                allowedRoles: [USER_ROLES.OWNER, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN]
             },
         ]
     }

@@ -39,9 +39,18 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
-            setMedicines(data);
+            // Handle both array and paginated response { medicines: [...] }
+            if (Array.isArray(data)) {
+                setMedicines(data);
+            } else if (data.medicines && Array.isArray(data.medicines)) {
+                setMedicines(data.medicines);
+            } else {
+                setMedicines([]);
+                console.warn('Unexpected medicines data format:', data);
+            }
         } catch (error) {
             console.error('Error fetching medicines:', error);
+            setMedicines([]);
         }
     };
 
@@ -189,7 +198,7 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
                                                 className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
                                             >
                                                 <option value="">Select medicine</option>
-                                                {medicines.map(m => (
+                                                {Array.isArray(medicines) && medicines.map(m => (
                                                     <option key={m._id} value={m._id || m.id}>{m.name}</option>
                                                 ))}
                                             </select>

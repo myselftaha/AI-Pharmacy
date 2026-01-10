@@ -1,5 +1,6 @@
 import React from 'react';
 import { Search } from 'lucide-react';
+import NotificationBell from '../common/NotificationBell';
 
 const Header = ({ title, subtitle, action }) => {
     const userStr = localStorage.getItem('user');
@@ -8,7 +9,7 @@ const Header = ({ title, subtitle, action }) => {
     const role = user?.role || 'Guest';
 
     return (
-        <div className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-10">
+        <div className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-50">
             <div>
                 <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     MedKitPOS <span className="text-sm font-normal text-gray-500">{subtitle}</span>
@@ -24,6 +25,8 @@ const Header = ({ title, subtitle, action }) => {
                         className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
                     />
                 </div>
+
+                <NotificationBell />
 
                 {action}
 

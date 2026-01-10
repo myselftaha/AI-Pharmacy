@@ -10,8 +10,10 @@ import OrderSuccessModal from '../components/pos/OrderSuccessModal';
 import API_URL from '../config/api';
 import Loader from '../components/common/Loader';
 import { getMedicinesFromLocal, saveMedicinesToLocal, queueTransaction } from '../utils/offlineSync';
+import { useSettings } from '../context/SettingsContext';
 
 const Home = () => {
+    const { settings, formatPrice, getCurrency } = useSettings();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [cartItems, setCartItems] = useState(() => {
@@ -32,6 +34,7 @@ const Home = () => {
 
     const { showToast } = useToast();
 
+    // Initialize with settings default if available (though settings might load later)
     const [paymentMethod, setPaymentMethod] = useState('Cash');
 
     const [selectedCustomer, setSelectedCustomer] = useState(() => {
@@ -456,7 +459,15 @@ const Home = () => {
                 discountValue: selectedVoucher.discountValue
             } : null,
             paymentMethod: paymentMethod,
-            processedBy: user?.username || 'Cashier'
+            processedBy: user?.username || 'Cashier',
+            // Add Tax details from settings
+            tax: taxAmount,
+            taxRate: settings?.taxRate || 0,
+            storeName: settings?.storeName,
+            storeAddress: settings?.storeAddress,
+            storePhone: settings?.storePhone,
+            receiptHeader: settings?.receiptHeader,
+            receiptFooter: settings?.receiptFooter
         };
 
         // Save transaction to backend strictly
@@ -563,6 +574,12 @@ const Home = () => {
 
     const platformFee = 0.10;
 
+    // Calculate Tax
+    const taxRate = settings?.taxRate || 0;
+    const taxAmount = settings?.taxInclusive
+        ? (subtotal - (subtotal / (1 + taxRate / 100)))
+        : (subtotal * taxRate / 100);
+
     let discountAmount = 0;
     if (selectedVoucher) {
         if (selectedVoucher.discountType === 'Percentage') {
@@ -574,7 +591,10 @@ const Home = () => {
         discountAmount = Math.min(discountAmount, subtotal);
     }
 
-    const cartTotal = subtotal + platformFee - discountAmount;
+    // Final Total Calculation
+    // If tax inclusive, subtotal already contains tax, so don't add it again unless it's exclusive
+    const taxableAmount = settings?.taxInclusive ? subtotal : (subtotal + taxAmount);
+    const cartTotal = taxableAmount + platformFee - discountAmount;
 
     return (
         <>

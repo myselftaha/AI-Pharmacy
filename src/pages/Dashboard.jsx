@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API_URL from '../config/api';
+import { useSettings } from '../context/SettingsContext';
 import {
     BarChart,
     Bar,
@@ -34,6 +35,7 @@ import {
 } from 'recharts';
 import Loader from '../components/common/Loader';
 const Dashboard = () => {
+    const { settings, formatPrice } = useSettings();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
@@ -403,7 +405,7 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <MetricCard
                         title="Today's Sales"
-                        value={`Rs. ${stats.todaySales.toLocaleString()}`}
+                        value={formatPrice(stats.todaySales)}
                         subtext="Gross Sales"
                         icon={TrendingUp}
                         colorClass="text-green-600"
@@ -412,7 +414,7 @@ const Dashboard = () => {
                     />
                     <MetricCard
                         title="Net Profit"
-                        value={`Rs. ${stats.todayProfit.toLocaleString()}`}
+                        value={formatPrice(stats.todayProfit)}
                         subtext="Est. Earnings"
                         icon={Wallet}
                         colorClass="text-green-600"
@@ -474,10 +476,10 @@ const Dashboard = () => {
                                 <BarChart data={salesTrend}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(value) => `Rs.${value}`} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(value) => formatPrice(value)} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        formatter={(value) => [`Rs. ${value}`, 'Sales']}
+                                        formatter={(value) => [formatPrice(value), 'Sales']}
                                         cursor={{ fill: '#f9fafb' }}
                                     />
                                     <Bar dataKey="sales" fill="#22c55e" radius={[6, 6, 0, 0]} barSize={40} animationDuration={1000} />
@@ -585,7 +587,7 @@ const Dashboard = () => {
                                                 {tx.customer?.name || 'Walk-in'}
                                             </td>
                                             <td className="py-3 text-sm font-bold text-gray-800">
-                                                Rs. {tx.total?.toFixed(0)}
+                                                {formatPrice(tx.total)}
                                             </td>
                                             <td className="py-3 text-right">
                                                 <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${(tx.type === 'Return' || tx.total < 0)

@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
-import { X, Printer, CheckCircle } from 'lucide-react';
+import { X, Printer, CheckCircle, Store } from 'lucide-react';
+import { useSettings } from '../../context/SettingsContext';
 
 const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount = 0, transactionId, billNumber, invoiceNumber, paymentMethod, voucher }) => {
+    const { settings, formatPrice } = useSettings();
     useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === 'Escape') onClose();
@@ -31,9 +33,23 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                 {/* Receipt Content */}
                 <div className="p-6 print:p-0" id="printable-receipt">
                     <div className="text-center mb-6">
-                        <h1 className="text-2xl font-bold text-gray-800 mb-1">MedKit POS</h1>
-                        <p className="text-sm text-gray-500">Pharmacy Management System</p>
-                        <p className="text-xs text-gray-400 mt-2">{date}</p>
+                        {settings?.showLogoOnReceipt && settings?.storeLogo ? (
+                            <div className="flex justify-center mb-2">
+                                <img src={settings.storeLogo} alt="Logo" className="h-16 w-auto object-contain" />
+                            </div>
+                        ) : (
+                            <div className="flex justify-center mb-2 text-green-600 print:grayscale">
+                                <Store size={32} />
+                            </div>
+                        )}
+                        <h1 className="text-2xl font-bold text-gray-800 mb-1">{settings?.storeName || 'MedKit POS'}</h1>
+                        <p className="text-sm text-gray-500 whitespace-pre-wrap">{settings?.storeAddress || 'Pharmacy Management System'}</p>
+                        {settings?.storePhone && <p className="text-xs text-gray-500">Tel: {settings.storePhone}</p>}
+                        {settings?.storeEmail && <p className="text-xs text-gray-500">Email: {settings.storeEmail}</p>}
+
+                        <div className="border-b border-gray-200 w-full my-3"></div>
+
+                        <p className="text-xs text-gray-400">{date}</p>
                         {billNumber ? (
                             <div className="mt-2">
                                 <p className="text-xl font-bold text-gray-800">Bill #: {billNumber}</p>
@@ -83,11 +99,11 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                     <div className="space-y-2 text-sm mb-6">
                         <div className="flex justify-between text-gray-600">
                             <span>Subtotal</span>
-                            <span>Rs. {(total - 0.10 + discount).toFixed(2)}</span>
+                            <span>{formatPrice(total - 0.10 + discount)}</span>
                         </div>
                         <div className="flex justify-between text-gray-600">
                             <span>Platform Fee</span>
-                            <span>Rs. 0.10</span>
+                            <span>{formatPrice(0.10)}</span>
                         </div>
                         {discount > 0 && (
                             <div className="flex justify-between text-green-600">
@@ -97,7 +113,7 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                         )}
                         <div className="flex justify-between font-bold text-lg text-gray-900 pt-2 border-t border-gray-200">
                             <span>Total</span>
-                            <span>Rs. {total.toFixed(2)}</span>
+                            <span>{formatPrice(total)}</span>
                         </div>
 
                         <div className="pt-4 mt-4 border-t border-dashed border-gray-300">
@@ -109,9 +125,19 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                     </div>
 
                     {/* Footer for Print */}
-                    <div className="hidden print:block text-center text-xs text-gray-500 mt-8">
-                        <p>Thank you for your purchase!</p>
-                        <p>Please visit again.</p>
+                    <div className="hidden print:block text-center mt-8 space-y-2">
+                        <div className="text-xs font-medium text-gray-800 border-t border-dashed border-gray-300 pt-2">
+                            {settings?.receiptHeader}
+                        </div>
+                        {settings?.receiptFooter && (
+                            <p className="text-xs text-gray-500 whitespace-pre-wrap">{settings.receiptFooter}</p>
+                        )}
+                        {settings?.receiptTerms && (
+                            <div className="text-[10px] text-gray-400 mt-2 border-t border-gray-100 pt-1">
+                                <span className="font-bold">Terms:</span> {settings.receiptTerms}
+                            </div>
+                        )}
+                        <p className="text-[10px] text-gray-400 mt-2">Powered by MedKit POS</p>
                     </div>
                 </div>
 
