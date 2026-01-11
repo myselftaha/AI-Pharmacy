@@ -1,18 +1,20 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 import NotificationBell from '../common/NotificationBell';
+import { useSettings } from '../../context/SettingsContext';
 
 const Header = ({ title, subtitle, action }) => {
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
     const username = user?.username || 'Guest';
     const role = user?.role || 'Guest';
+    const { settings } = useSettings();
 
     return (
         <div className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-50">
             <div>
                 <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    MedKitPOS <span className="text-sm font-normal text-gray-500">{subtitle}</span>
+                    {settings?.storeName || 'MedKitPOS'} <span className="text-sm font-normal text-gray-500">{subtitle}</span>
                 </h1>
             </div>
 

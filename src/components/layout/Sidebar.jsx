@@ -20,6 +20,7 @@ import {
     Settings as SettingsIcon
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useSettings } from '../../context/SettingsContext';
 
 import { USER_ROLES } from '../../config/roles';
 
@@ -165,6 +166,7 @@ const SidebarItem = React.memo(({ item, isHovered, role }) => {
 
 const Sidebar = ({ isHoveredExternally, onHoverChange }) => {
     const navigate = useNavigate();
+    const { settings } = useSettings();
     const [isInternalHover, setIsInternalHover] = useState(false);
 
     // Determine hover state based on props or internal state
@@ -208,14 +210,20 @@ const Sidebar = ({ isHoveredExternally, onHoverChange }) => {
         >
             {/* Logo Section */}
             <div className="p-4 py-6 flex items-center gap-3 overflow-hidden">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-green-500/20">i</div>
+                <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-green-500/20 overflow-hidden">
+                    {settings?.storeLogo ? (
+                        <img src={settings.storeLogo} alt="Logo" className="w-full h-full object-contain bg-white" />
+                    ) : (
+                        <span>{settings?.storeName?.charAt(0) || 'i'}</span>
+                    )}
+                </div>
                 <h1
                     className={clsx(
                         "text-xl font-bold text-white whitespace-nowrap transition-all duration-300 origin-left",
                         isHovered ? "opacity-100 translate-x-0 w-auto" : "opacity-0 -translate-x-4 w-0"
                     )}
                 >
-                    MedKitPOS
+                    {settings?.storeName || 'MedKitPOS'}
                 </h1>
             </div>
 
