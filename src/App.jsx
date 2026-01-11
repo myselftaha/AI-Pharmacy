@@ -31,6 +31,7 @@ import { SettingsProvider } from './context/SettingsContext';
 import Settings from './pages/Settings';
 import { NotificationProvider } from './context/NotificationContext';
 import Notifications from './pages/Notifications';
+import EmailReports from './pages/EmailReports';
 
 function App() {
   const [setupStatus, setSetupStatus] = useState({ isSetupCompleted: false, loading: true });
@@ -134,6 +135,7 @@ function App() {
                       <Route path="users" element={<Users />} />
                       <Route path="loaders" element={<LoaderDemo />} />
                       <Route path="settings" element={<Settings />} />
+                      <Route path="email-reports" element={<EmailReports />} />
                     </Route>
 
                     {/* Staff: Owner, Manager */}

@@ -6952,6 +6952,160 @@ app.post('/api/email/send-expiry-alert', authenticateToken, async (req, res) => 
     }
 });
 
+// Daily sales summary email
+app.post('/api/email/send-daily-summary', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Get today's transactions
+        const transactions = await Transaction.find({
+            createdAt: { $gte: today, $lt: tomorrow }
+        }); // Removed .populate('items.medicine') as medicine is not a reference in items schema
+
+        // Calculate summary
+        const totalTransactions = transactions.length;
+        const totalSales = transactions.reduce((sum, t) => sum + (t.items?.length || 0), 0);
+        const totalRevenue = transactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+
+        // Top medicines
+        const medicineStats = {};
+        transactions.forEach(t => {
+            t.items?.forEach(item => {
+                // Use item.name directly as per schema
+                const name = item.name || 'Unknown';
+                if (!medicineStats[name]) {
+                    medicineStats[name] = { name, quantity: 0, revenue: 0 };
+                }
+                medicineStats[name].quantity += item.quantity || 0;
+                medicineStats[name].revenue += (item.quantity || 0) * (item.price || 0);
+            });
+        });
+        const topMedicines = Object.values(medicineStats).sort((a, b) => b.revenue - a.revenue);
+
+        // Payment breakdown
+        const paymentBreakdown = {
+            cash: transactions.filter(t => t.paymentMethod === 'Cash').reduce((sum, t) => sum + t.totalAmount, 0),
+            card: transactions.filter(t => t.paymentMethod === 'Card').reduce((sum, t) => sum + t.totalAmount, 0)
+        };
+
+        const summary = {
+            date: today.toLocaleDateString(),
+            totalTransactions,
+            totalSales,
+            totalRevenue,
+            topMedicines,
+            paymentBreakdown
+        };
+
+        // Pass force: true to bypass settings check if implemented, or we will remove the check in service
+        const result = await emailService.sendDailySalesSummary(summary, settings, true); // Added true for force send if we add that param
+
+        if (result.success) {
+            res.json({ message: 'Daily sales summary email sent successfully!', success: true });
+        } else if (result.reason === 'disabled') {
+            res.json({ message: 'Daily sales summary alerts are disabled in Settings', success: false, reason: 'disabled' });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Daily summary email error:', err);
+        res.status(500).json({ message: 'Error sending daily summary', error: err.message });
+    }
+});
+
+// Inventory report email
+app.post('/api/email/send-inventory-report', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+        const inventory = await Medicine.find({ status: 'Active' })
+            .select('name stock unit purchasePrice status')
+            .sort({ name: 1 });
+
+        if (inventory.length === 0) {
+            return res.json({ message: 'No inventory items found', success: true, count: 0 });
+        }
+
+        const result = await emailService.sendInventoryReportEmail(inventory, settings);
+
+        if (result.success) {
+            res.json({ message: `Inventory report sent for ${result.count} items`, success: true, count: result.count });
+        } else if (result.reason === 'disabled') {
+            res.json({ message: 'Email notifications are disabled in Settings', success: false, reason: 'disabled' });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Inventory report email error:', err);
+        res.status(500).json({ message: 'Error sending inventory report', error: err.message });
+    }
+});
+
+// Returns report email
+app.post('/api/email/send-returns-report', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+        const returns = await Transaction.find({ type: 'Return' })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .populate('customer');
+
+        if (returns.length === 0) {
+            return res.json({ message: 'No returns found', success: true, count: 0 });
+        }
+
+        const result = await emailService.sendReturnsReportEmail(returns, settings);
+
+        if (result.success) {
+            res.json({ message: `Returns report sent for ${result.count} returns`, success: true, count: result.count });
+        } else if (result.reason === 'disabled') {
+            res.json({ message: 'Email notifications are disabled in Settings', success: false, reason: 'disabled' });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Returns report email error:', err);
+        res.status(500).json({ message: 'Error sending returns report', error: err.message });
+    }
+});
+
+// Transaction history email
+app.post('/api/email/send-transaction-history', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+        const last7Days = new Date();
+        last7Days.setDate(last7Days.getDate() - 7);
+
+        const transactions = await Transaction.find({
+            createdAt: { $gte: last7Days },
+            type: { $ne: 'Return' }
+        })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .populate('customer');
+
+        if (transactions.length === 0) {
+            return res.json({ message: 'No transactions found', success: true, count: 0 });
+        }
+
+        const result = await emailService.sendTransactionHistoryEmail(transactions, settings, 'Last 7 Days');
+
+        if (result.success) {
+            res.json({ message: `Transaction history sent for ${result.count} transactions`, success: true, count: result.count });
+        } else if (result.reason === 'disabled') {
+            res.json({ message: 'Email notifications are disabled in Settings', success: false, reason: 'disabled' });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Transaction history email error:', err);
+        res.status(500).json({ message: 'Error sending transaction history', error: err.message });
+    }
+});
+
 // Verify email connection
 app.get('/api/email/verify', authenticateToken, async (req, res) => {
     try {
