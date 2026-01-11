@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cron from 'node-cron';
+import * as emailService from './services/emailService.js';
 
 dotenv.config();
 
@@ -6849,6 +6850,133 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
         })
         .catch(err => console.error('MongoDB Connection Error:', err));
 }
+
+// --- EMAIL NOTIFICATION ROUTES ---
+
+// Test email configuration
+app.post('/api/email/test', authenticateToken, async (req, res) => {
+    try {
+        const result = await emailService.sendTestEmail();
+        if (result.success) {
+            res.json({ message: 'Test email sent successfully! Check your inbox.', success: true });
+        } else {
+            res.status(500).json({
+                message: 'Failed to send test email. Please check your email configuration.',
+                error: result.error,
+                success: false
+            });
+        }
+    } catch (err) {
+        console.error('Test email error:', err);
+        res.status(500).json({ message: 'Error sending test email', error: err.message });
+    }
+});
+
+// Manually trigger low stock alert email
+app.post('/api/email/send-low-stock-alert', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+
+        // Find all low stock medicines
+        const lowStockMedicines = await Medicine.find({
+            stock: { $lte: settings?.lowStockThreshold || 10 },
+            status: 'Active'
+        }).select('name stock unit');
+
+        if (lowStockMedicines.length === 0) {
+            return res.json({ message: 'No low stock items found', success: true, count: 0 });
+        }
+
+        const result = await emailService.sendLowStockEmail(lowStockMedicines, settings);
+
+        if (result.success) {
+            res.json({
+                message: `Low stock alert email sent for ${result.count} medicines`,
+                success: true,
+                medicines: lowStockMedicines
+            });
+        } else if (result.reason === 'disabled') {
+            res.json({
+                message: 'Low stock alerts are disabled in Settings',
+                success: false,
+                reason: 'disabled'
+            });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Low stock email error:', err);
+        res.status(500).json({ message: 'Error sending low stock alert', error: err.message });
+    }
+});
+
+// Manually trigger expiry alert email
+app.post('/api/email/send-expiry-alert', authenticateToken, async (req, res) => {
+    try {
+        const settings = await Settings.findOne();
+        const expiryAlertDays = settings?.expiryAlertDays || 30;
+
+        // Find medicines expiring soon
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + expiryAlertDays);
+
+        const expiringMedicines = await Medicine.find({
+            expiryDate: { $lte: futureDate, $gte: new Date() },
+            status: 'Active'
+        }).select('name stock unit expiryDate');
+
+        if (expiringMedicines.length === 0) {
+            return res.json({ message: 'No expiring medicines found', success: true, count: 0 });
+        }
+
+        const result = await emailService.sendExpiryAlertEmail(expiringMedicines, settings);
+
+        if (result.success) {
+            res.json({
+                message: `Expiry alert email sent for ${result.count} medicines`,
+                success: true,
+                medicines: expiringMedicines
+            });
+        } else if (result.reason === 'disabled') {
+            res.json({
+                message: 'Expiry alerts are disabled in Settings',
+                success: false,
+                reason: 'disabled'
+            });
+        } else {
+            res.status(500).json({ message: 'Failed to send email', error: result.error });
+        }
+    } catch (err) {
+        console.error('Expiry alert email error:', err);
+        res.status(500).json({ message: 'Error sending expiry alert', error: err.message });
+    }
+});
+
+// Verify email connection
+app.get('/api/email/verify', authenticateToken, async (req, res) => {
+    try {
+        const isConnected = await emailService.verifyEmailConnection();
+        if (isConnected) {
+            res.json({
+                message: 'Email server connection verified',
+                success: true,
+                config: {
+                    host: process.env.SMTP_HOST,
+                    port: process.env.SMTP_PORT,
+                    from: process.env.STORE_EMAIL,
+                    to: process.env.OWNER_EMAIL
+                }
+            });
+        } else {
+            res.status(500).json({
+                message: 'Email server connection failed',
+                success: false
+            });
+        }
+    } catch (err) {
+        res.status(500).json({ message: 'Error verifying connection', error: err.message });
+    }
+});
 
 // --- NOTIFICATION ROUTES ---
 
