@@ -133,8 +133,8 @@ const Settings = () => {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${isActive
-                                            ? 'bg-green-50 text-green-700 font-medium'
-                                            : 'text-gray-600 hover:bg-gray-50'
+                                        ? 'bg-green-50 text-green-700 font-medium'
+                                        : 'text-gray-600 hover:bg-gray-50'
                                         }`}
                                 >
                                     <Icon size={20} className={isActive ? 'text-green-600' : 'text-gray-400'} />
@@ -301,17 +301,6 @@ const Settings = () => {
                                 </div>
 
                                 <div className="flex gap-8 border-t pt-4">
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="checkbox"
-                                            id="showLogoOnReceipt"
-                                            name="showLogoOnReceipt"
-                                            checked={formData.showLogoOnReceipt || false}
-                                            onChange={handleChange}
-                                            className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                                        />
-                                        <label htmlFor="showLogoOnReceipt" className="text-gray-700 cursor-pointer select-none">Show Logo</label>
-                                    </div>
                                     <div className="flex items-center gap-3">
                                         <input
                                             type="checkbox"
@@ -612,8 +601,8 @@ const Settings = () => {
                                                 key={day}
                                                 onClick={() => handleDayToggle(day)}
                                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${formData.workingDays?.includes(day)
-                                                        ? 'bg-green-500 text-white shadow-green-200 shadow-lg'
-                                                        : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
+                                                    ? 'bg-green-500 text-white shadow-green-200 shadow-lg'
+                                                    : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'
                                                     }`}
                                             >
                                                 {day}

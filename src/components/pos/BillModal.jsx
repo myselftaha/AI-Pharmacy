@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Printer, CheckCircle, Store } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount = 0, transactionId, billNumber, invoiceNumber, paymentMethod, voucher }) => {
     const { settings, formatPrice } = useSettings();
@@ -33,7 +34,7 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                 {/* Receipt Content */}
                 <div className="p-6 print:p-0" id="printable-receipt">
                     <div className="text-center mb-6">
-                        {settings?.showLogoOnReceipt && settings?.storeLogo ? (
+                        {settings?.storeLogo ? (
                             <div className="flex justify-center mb-2">
                                 <img src={settings.storeLogo} alt="Logo" className="h-16 w-auto object-contain" />
                             </div>
@@ -138,6 +139,21 @@ const BillModal = ({ isOpen, onClose, items, total, onPrint, customer, discount 
                             </div>
                         )}
                         <p className="text-[10px] text-gray-400 mt-2">Powered by MedKit POS</p>
+
+                        {/* QR Code */}
+                        {(settings?.showQRCode || true) && (
+                            <div className="flex justify-center mt-4 pt-2 border-t border-dashed border-gray-200">
+                                <QRCodeCanvas
+                                    value={JSON.stringify({
+                                        id: transactionId || billNumber,
+                                        total: total,
+                                        date: new Date().toISOString()
+                                    })}
+                                    size={64}
+                                    level={"M"}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
