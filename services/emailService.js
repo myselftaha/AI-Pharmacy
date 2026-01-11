@@ -346,15 +346,15 @@ export async function sendInventoryReportEmail(inventoryData, settings) {
     `<tr>
       <td style="padding: 8px; border: 1px solid #ddd;">${m.name}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${m.stock} ${m.unit}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(m.purchasePrice || 0).toFixed(2)}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(m.stock * (m.purchasePrice || 0)).toFixed(2)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(m.costPrice || m.price || 0).toFixed(2)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(m.stock * (m.costPrice || m.price || 0)).toFixed(2)}</td>
       <td style="padding: 8px; border: 1px solid #ddd; color: ${m.stock <= 10 ? '#dc2626' : '#059669'};">
         ${m.status || 'Active'}
       </td>
     </tr>`
   ).join('');
 
-  const totalValue = inventoryData.reduce((sum, m) => sum + (m.stock * (m.purchasePrice || 0)), 0);
+  const totalValue = inventoryData.reduce((sum, m) => sum + (m.stock * (m.costPrice || m.price || 0)), 0);
   const totalItems = inventoryData.length;
 
   const emailHtml = `
@@ -447,12 +447,12 @@ export async function sendReturnsReportEmail(returns, settings) {
       <td style="padding: 8px; border: 1px solid #ddd;">${new Date(r.createdAt).toLocaleDateString()}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${r.customerName || 'N/A'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${r.medicineName || r.items?.length || 0} item(s)</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(r.refundAmount || r.totalAmount || 0).toFixed(2)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(r.total || 0).toFixed(2)}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${r.reason || 'Not specified'}</td>
     </tr>`
   ).join('');
 
-  const totalRefund = returns.reduce((sum, r) => sum + (r.refundAmount || r.totalAmount || 0), 0);
+  const totalRefund = returns.reduce((sum, r) => sum + (r.total || 0), 0);
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -533,12 +533,12 @@ export async function sendTransactionHistoryEmail(transactions, settings, period
       <td style="padding: 8px; border: 1px solid #ddd;">${t.orderNumber || t._id}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.customerName || 'Walk-in'}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.items?.length || 0}</td>
-      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(t.totalAmount || 0).toFixed(2)}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">Rs ${(t.total || 0).toFixed(2)}</td>
       <td style="padding: 8px; border: 1px solid #ddd;">${t.paymentMethod || 'Cash'}</td>
     </tr>`
   ).join('');
 
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+  const totalRevenue = transactions.reduce((sum, t) => sum + (t.total || 0), 0);
 
   const emailHtml = `
     <!DOCTYPE html>

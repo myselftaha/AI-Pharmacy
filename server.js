@@ -1487,6 +1487,109 @@ app.get('/api/supplies', authenticateToken, async (req, res) => {
     }
 });
 
+// Bulk import medicines
+app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
+    try {
+        const { medicines } = req.body;
+        if (!medicines || !Array.isArray(medicines)) {
+            return res.status(400).json({ message: 'Invalid data format. Expected array of medicines.' });
+        }
+
+        const results = {
+            total: medicines.length,
+            successful: 0,
+            failed: 0,
+            errors: []
+        };
+
+        for (let i = 0; i < medicines.length; i++) {
+            const row = medicines[i];
+            try {
+                // Determine medicine name
+                const name = row.name || row.Name || row['Medicine Name'];
+                if (!name) {
+                    throw new Error('Medicine name is required');
+                }
+
+                // Check for existing medicine
+                let medicine = await Medicine.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+
+                // Map fields (handling various casing/formats from Excel)
+                const stock = parseInt(row.stock || row.Stock || 0) || 0;
+                const price = parseFloat(row.price || row.Price || row.sellingPrice || row.SellingPrice || 0) || 0;
+                const costPrice = parseFloat(row.costPrice || row.CostPrice || row.purchasePrice || row.PurchasePrice || 0) || 0;
+                const mrp = parseFloat(row.mrp || row.MRP || 0) || 0;
+                const unit = row.unit || row.Unit || 'pcs';
+                const category = row.category || row.Category || 'General';
+                // Force status to Active for imported items unless explicitly inactive
+                const status = (row.status || row.Status || 'Active') === 'Inactive' ? 'Inactive' : 'Active';
+                const expiryDate = row.expiryDate || row.ExpiryDate;
+
+                if (medicine) {
+                    // Update existing
+                    medicine.stock = (medicine.stock || 0) + stock;
+                    if (price > 0) medicine.price = price;
+                    if (price > 0) medicine.sellingPrice = price;
+                    if (costPrice > 0) medicine.costPrice = costPrice;
+                    if (mrp > 0) medicine.mrp = mrp;
+                    if (!medicine.inInventory) medicine.inInventory = true;
+                    if (medicine.status !== 'Active') medicine.status = 'Active';
+                    medicine.lastUpdated = new Date();
+
+                    if (expiryDate) medicine.expiryDate = new Date(expiryDate);
+
+                    await medicine.save();
+                } else {
+                    // Create new
+                    const lastMedicine = await Medicine.findOne().sort({ id: -1 });
+                    const nextId = lastMedicine && lastMedicine.id ? lastMedicine.id + 1 : 1;
+
+                    medicine = new Medicine({
+                        id: nextId,
+                        name,
+                        stock,
+                        price,
+                        sellingPrice: price,
+                        costPrice,
+                        mrp,
+                        unit,
+                        category,
+                        status: 'Active',
+                        inInventory: true,
+                        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+                        description: row.description || row.Description || '',
+                        minStock: row.minStock || row.MinStock || 10,
+                        supplier: row.supplier || row.Supplier || '',
+                        formulaCode: row.formulaCode || row.FormulaCode || '',
+                        shelfLocation: row.shelfLocation || row.ShelfLocation || ''
+                    });
+
+                    await medicine.save();
+                }
+
+                results.successful++;
+            } catch (err) {
+                console.error(`Error importing row ${i + 1}:`, err);
+                results.failed++;
+                results.errors.push({
+                    row: i + 1,
+                    name: row.name || 'Unknown',
+                    error: err.message
+                });
+            }
+        }
+
+        res.json({
+            message: `Import completed. Successful: ${results.successful}, Failed: ${results.failed}`,
+            results
+        });
+
+    } catch (err) {
+        console.error('Bulk import error:', err);
+        res.status(500).json({ message: 'Internal server error during import' });
+    }
+});
+
 // Add new supply (and update inventory)
 app.post('/api/supplies', authenticateToken, async (req, res) => {
     try {
@@ -6969,7 +7072,7 @@ app.post('/api/email/send-daily-summary', authenticateToken, async (req, res) =>
         // Calculate summary
         const totalTransactions = transactions.length;
         const totalSales = transactions.reduce((sum, t) => sum + (t.items?.length || 0), 0);
-        const totalRevenue = transactions.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+        const totalRevenue = transactions.reduce((sum, t) => sum + (t.total || 0), 0);
 
         // Top medicines
         const medicineStats = {};
@@ -6988,8 +7091,8 @@ app.post('/api/email/send-daily-summary', authenticateToken, async (req, res) =>
 
         // Payment breakdown
         const paymentBreakdown = {
-            cash: transactions.filter(t => t.paymentMethod === 'Cash').reduce((sum, t) => sum + t.totalAmount, 0),
-            card: transactions.filter(t => t.paymentMethod === 'Card').reduce((sum, t) => sum + t.totalAmount, 0)
+            cash: transactions.filter(t => t.paymentMethod === 'Cash').reduce((sum, t) => sum + t.total, 0),
+            card: transactions.filter(t => t.paymentMethod === 'Card').reduce((sum, t) => sum + t.total, 0)
         };
 
         const summary = {
@@ -7022,7 +7125,7 @@ app.post('/api/email/send-inventory-report', authenticateToken, async (req, res)
     try {
         const settings = await Settings.findOne();
         const inventory = await Medicine.find({ status: 'Active' })
-            .select('name stock unit purchasePrice status')
+            .select('name stock unit costPrice price sellingPrice status') // Updated to select correct price fields
             .sort({ name: 1 });
 
         if (inventory.length === 0) {
