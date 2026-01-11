@@ -342,7 +342,7 @@ const Settings = () => {
                                     <input
                                         type="number"
                                         name="taxRate"
-                                        value={formData.taxRate || 0}
+                                        value={formData.taxRate ?? ''}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none"
                                     />
@@ -378,7 +378,7 @@ const Settings = () => {
                                     <input
                                         type="number"
                                         name="maxDiscountPercent"
-                                        value={formData.maxDiscountPercent || 50}
+                                        value={formData.maxDiscountPercent ?? ''}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none"
                                     />
@@ -414,7 +414,7 @@ const Settings = () => {
                                     <input
                                         type="number"
                                         name="lowStockThreshold"
-                                        value={formData.lowStockThreshold || 10}
+                                        value={formData.lowStockThreshold ?? ''}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none"
                                     />
@@ -426,7 +426,7 @@ const Settings = () => {
                                     <input
                                         type="number"
                                         name="expiryAlertDays"
-                                        value={formData.expiryAlertDays || 30}
+                                        value={formData.expiryAlertDays ?? ''}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none"
                                     />

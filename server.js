@@ -5586,7 +5586,8 @@ async function updateMedicineStockFromBatches(medicineId) {
 // Helper: Check for Low Stock and Create Notification
 const checkLowStock = async (medicine) => {
     try {
-        const minStock = medicine.minStock || 10;
+        const settings = await Settings.findOne() || {};
+        const minStock = medicine.minStock || settings.lowStockThreshold || 10;
         console.log(`[Low Stock Check] ${medicine.name}: Stock=${medicine.stock}, Min=${minStock}`);
 
         if (medicine.stock <= minStock) {
@@ -6278,8 +6279,12 @@ app.get('/api/reports/inventory-health', async (req, res) => {
 app.get('/api/expiry/analytics', async (req, res) => {
     try {
         const now = new Date();
-        const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+        const settings = await Settings.findOne() || {};
+        const criticalDays = settings.expiryAlertDays || 30;
+        const warningDays = criticalDays * 3; // Keep proportional or use 90
+
+        const thirtyDaysFromNow = new Date(now.getTime() + criticalDays * 24 * 60 * 60 * 1000);
+        const ninetyDaysFromNow = new Date(now.getTime() + warningDays * 24 * 60 * 60 * 1000);
 
         const medicines = await Medicine.find({ status: 'Active' });
 
@@ -6428,7 +6433,9 @@ app.post('/api/expiry/dispose', async (req, res) => {
 app.get('/api/expiry/summary', async (req, res) => {
     try {
         const now = new Date();
-        const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const settings = await Settings.findOne() || {};
+        const criticalDays = settings.expiryAlertDays || 30;
+        const thirtyDaysFromNow = new Date(now.getTime() + criticalDays * 24 * 60 * 60 * 1000);
 
         const expiredCount = await Medicine.countDocuments({
             status: 'Active',

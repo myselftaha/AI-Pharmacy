@@ -165,6 +165,9 @@ const Dashboard = () => {
         const todayStr = today.toISOString().split('T')[0];
 
         // 1. KPI Stats - Use Optimized Backend Data
+        const lowStockThreshold = settings?.lowStockThreshold || 10;
+        const lowStockCount = medicines.filter(m => (m.stock || 0) <= (m.minStock || lowStockThreshold)).length;
+
         setStats({
             todaySales: backendStats.raw.sales,
             todayProfit: backendStats.raw.sales - backendStats.raw.expenses - backendStats.raw.returns, // Simple formula
@@ -174,7 +177,7 @@ const Dashboard = () => {
             totalPayables: 0, // Placeholder
             expiryCount: 0, // Placeholder
             expiryValue: 0,
-            lowStockCount: backendStats.raw.lowStock
+            lowStockCount: lowStockCount
         });
 
         // 2. Sales Trend (Last 7 Days)

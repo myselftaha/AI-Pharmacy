@@ -183,11 +183,18 @@ const Home = () => {
 
         // Check stock (default to Single for now)
         const packSize = product.packSize || 1;
-        const totalStockNeeded = currentQty + quantityToAdd; // addToCart items are Single by default
+        const totalStockNeeded = currentQty + quantityToAdd;
 
-        if (totalStockNeeded > (product.stock || 0)) {
-            showToast(`Out of stock! Only ${product.stock} units available.`, 'error');
-            return;
+        const behavior = settings?.outOfStockBehavior || 'allow';
+        const isOutOfStock = totalStockNeeded > (product.stock || 0);
+
+        if (isOutOfStock) {
+            if (behavior === 'block') {
+                showToast(`Out of stock! Only ${product.stock} units available.`, 'error');
+                return;
+            } else if (behavior === 'warn') {
+                showToast(`Low stock warning! Selling more than available (${product.stock}).`, 'warning');
+            }
         }
 
         setCartItems(prev => {
@@ -218,9 +225,16 @@ const Home = () => {
                 const isPack = item.saleType === 'Pack';
                 const totalUnitsNeeded = newQuantity * (isPack ? packSize : 1);
 
-                if (totalUnitsNeeded > (item.stock || 0)) {
-                    showToast(`Out of stock! Converting to ${saleType} requires ${totalUnitsNeeded} units, but only ${item.stock} available.`, 'error');
-                    return item;
+                const behavior = settings?.outOfStockBehavior || 'allow';
+                const isOutOfStock = totalUnitsNeeded > (item.stock || 0);
+
+                if (isOutOfStock) {
+                    if (behavior === 'block') {
+                        showToast(`Out of stock! Only ${item.stock} available.`, 'error');
+                        return item;
+                    } else if (behavior === 'warn') {
+                        showToast(`Low stock warning! Selling more than available (${item.stock}).`, 'warning');
+                    }
                 }
                 return { ...item, quantity: newQuantity };
             }
@@ -239,9 +253,16 @@ const Home = () => {
                 const isPack = saleType === 'Pack';
                 const totalUnitsNeeded = item.quantity * (isPack ? packSize : 1);
 
-                if (totalUnitsNeeded > (item.stock || 0)) {
-                    showToast(`Out of stock! Converting to ${saleType} requires ${totalUnitsNeeded} units, but only ${item.stock} available.`, 'error');
-                    return item;
+                const behavior = settings?.outOfStockBehavior || 'allow';
+                const isOutOfStock = totalUnitsNeeded > (item.stock || 0);
+
+                if (isOutOfStock) {
+                    if (behavior === 'block') {
+                        showToast(`Out of stock! Converting to ${saleType} requires ${totalUnitsNeeded} units, but only ${item.stock} available.`, 'error');
+                        return item;
+                    } else if (behavior === 'warn') {
+                        showToast(`Low stock warning! Selling more than available (${item.stock}).`, 'warning');
+                    }
                 }
                 return { ...item, saleType };
             }

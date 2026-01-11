@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import AddToInventoryModal from '../components/inventory/AddToInventoryModal';
 import EditInventoryModal from '../components/inventory/EditInventoryModal';
 import API_URL from '../config/api';
+import { useSettings } from '../context/SettingsContext';
 
 // ... (rest of imports)
 
@@ -36,6 +37,7 @@ const Inventory = () => {
     const [enrichedLowStockItems, setEnrichedLowStockItems] = useState([]);
     const [showExportDropdown, setShowExportDropdown] = useState(false);
     const { showToast } = useToast();
+    const { settings } = useSettings();
     const location = useLocation();
 
     useEffect(() => {
@@ -543,16 +545,18 @@ const Inventory = () => {
                     </span>
                     {activeTab === 'lowstock' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-600" />}
                 </button>
-                <button
-                    onClick={() => setActiveTab('ai-alerts')}
-                    className={`pb-3 px-2 font-medium text-sm transition-colors relative ${activeTab === 'ai-alerts' ? 'text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    <span className="flex items-center gap-2">
-                        <Brain size={18} />
-                        AI Low Stock Alerts
-                    </span>
-                    {activeTab === 'ai-alerts' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600" />}
-                </button>
+                {settings?.autoReorder && (
+                    <button
+                        onClick={() => setActiveTab('ai-alerts')}
+                        className={`pb-3 px-2 font-medium text-sm transition-colors relative ${activeTab === 'ai-alerts' ? 'text-purple-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <span className="flex items-center gap-2">
+                            <Brain size={18} />
+                            AI Low Stock Alerts
+                        </span>
+                        {activeTab === 'ai-alerts' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600" />}
+                    </button>
+                )}
             </div>
 
             {/* Main Content */}
@@ -700,6 +704,7 @@ const Inventory = () => {
                                         <th className="px-4 py-3 rounded-l-lg">Product</th>
                                         <th className="px-4 py-3">Category</th>
                                         <th className="px-4 py-3">Stock</th>
+                                        {settings?.autoReorder && <th className="px-4 py-3">Suggested</th>}
                                         <th className="px-4 py-3 text-right rounded-r-lg">Action</th>
                                     </tr>
                                 </thead>
@@ -727,6 +732,18 @@ const Inventory = () => {
                                                         </span>
                                                     </div>
                                                 </td>
+                                                {settings?.autoReorder && (
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-gray-700">
+                                                                {item.reorderSuggestion?.suggestedQuantity || '-'}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-400 uppercase">
+                                                                {item.reorderSuggestion?.urgency || 'Normal'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                )}
                                                 <td className="px-4 py-3 text-right">
                                                     <button
                                                         onClick={() => navigate('/suppliers')}
@@ -739,7 +756,7 @@ const Inventory = () => {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="4" className="px-4 py-12 text-center text-gray-400">
+                                            <td colSpan={settings?.autoReorder ? 5 : 4} className="px-4 py-12 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <CheckSquare size={32} className="text-green-500 mb-2" />
                                                     <p className="font-medium">All stock levels healthy!</p>

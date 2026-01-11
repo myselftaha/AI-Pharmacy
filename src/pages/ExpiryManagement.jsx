@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../context/ToastContext';
+import { useSettings } from '../context/SettingsContext';
 import {
     AlertTriangle,
     AlertCircle,
@@ -20,6 +21,7 @@ import Loader from '../components/common/Loader';
 
 const ExpiryManagement = () => {
     const { showToast } = useToast();
+    const { settings } = useSettings();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('inventory'); // 'inventory', 'ai-insights'
     const [analytics, setAnalytics] = useState(null);
@@ -215,7 +217,7 @@ const ExpiryManagement = () => {
                         <span className="text-xs font-semibold text-orange-600 bg-orange-200 px-2 py-1 rounded-full">CRITICAL</span>
                     </div>
                     <h3 className="text-2xl font-bold text-orange-700">{analytics.critical.count}</h3>
-                    <p className="text-sm text-orange-600 font-medium">Expiring in 30 Days</p>
+                    <p className="text-sm text-orange-600 font-medium">Expiring in {settings?.expiryAlertDays || 30} Days</p>
                     <p className="text-xs text-orange-500 mt-1">Value: Rs. {analytics.critical.totalValue.toLocaleString()}</p>
                 </div>
 
@@ -225,7 +227,7 @@ const ExpiryManagement = () => {
                         <span className="text-xs font-semibold text-yellow-600 bg-yellow-200 px-2 py-1 rounded-full">WARNING</span>
                     </div>
                     <h3 className="text-2xl font-bold text-yellow-700">{analytics.warning.count}</h3>
-                    <p className="text-sm text-yellow-600 font-medium">Expiring in 90 Days</p>
+                    <p className="text-sm text-yellow-600 font-medium">Expiring in {(settings?.expiryAlertDays || 30) * 3} Days</p>
                     <p className="text-xs text-yellow-500 mt-1">Value: Rs. {analytics.warning.totalValue.toLocaleString()}</p>
                 </div>
 
