@@ -250,6 +250,20 @@ const Home = () => {
     };
 
     const updateDiscount = (id, discount) => {
+        // Validate against max discount if set
+        const maxDiscountPercent = settings?.maxDiscountPercent || 100;
+        const item = cartItems.find(i => (i._id || i.id) === id);
+
+        if (item) {
+            const itemPrice = item.customPrice || item.price;
+            const discountPercent = (discount / itemPrice) * 100;
+
+            if (discountPercent > maxDiscountPercent) {
+                showToast(`Discount cannot exceed ${maxDiscountPercent}%`, 'error');
+                return;
+            }
+        }
+
         setCartItems(prev => prev.map(item =>
             (item._id || item.id) === id ? { ...item, discount } : item
         ));

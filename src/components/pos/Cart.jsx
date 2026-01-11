@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, ChevronDown, Banknote, CreditCard } from 'lucide-react';
+import { useSettings } from '../../context/SettingsContext';
 
 const CartItem = ({ item, onUpdateQuantity, onUpdateSaleType, onUpdateDiscount, onUpdateIsUnit, onUpdateCustomPrice, onRemove }) => {
     // Initialize with prop value converted to string, empty if 1
@@ -202,6 +203,7 @@ const Cart = ({
     }, 0);
 
     const platformFee = 0.10;
+    const { formatPrice } = useSettings();
     const total = Math.max(0, subtotal + platformFee - discount);
 
     return (
@@ -264,11 +266,11 @@ const Cart = ({
                 <div className="space-y-2 mb-4 text-sm">
                     <div className="flex justify-between text-gray-600">
                         <span>Subtotal</span>
-                        <span className="font-medium">Rs. {subtotal.toFixed(2)}</span>
+                        <span className="font-medium">{formatPrice(subtotal)}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                         <span>Platform fee</span>
-                        <span className="font-medium">Rs. {platformFee.toFixed(2)}</span>
+                        <span className="font-medium">{formatPrice(platformFee)}</span>
                     </div>
                     {discount > 0 && (
                         <div className="flex justify-between text-green-600">
@@ -276,12 +278,12 @@ const Cart = ({
                                 Discount
                                 {selectedVoucher && ` (${selectedVoucher.code})`}
                             </span>
-                            <span className="font-medium">-Rs. {discount.toFixed(2)}</span>
+                            <span className="font-medium">-{formatPrice(discount)}</span>
                         </div>
                     )}
                     <div className="flex justify-between text-gray-900 font-bold text-lg pt-2 border-t border-gray-200">
                         <span>Total</span>
-                        <span>Rs. {total.toFixed(2)}</span>
+                        <span>{formatPrice(total)}</span>
                     </div>
                 </div>
 
@@ -292,8 +294,8 @@ const Cart = ({
                         <button
                             onClick={() => onPaymentMethodChange('Cash')}
                             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border-2 transition-all font-bold text-sm ${paymentMethod === 'Cash'
-                                    ? 'border-[#00c950] bg-green-50 text-[#00c950]'
-                                    : 'border-white bg-white text-gray-400 hover:border-gray-200'
+                                ? 'border-[#00c950] bg-green-50 text-[#00c950]'
+                                : 'border-white bg-white text-gray-400 hover:border-gray-200'
                                 }`}
                         >
                             <Banknote size={18} />
@@ -302,8 +304,8 @@ const Cart = ({
                         <button
                             onClick={() => onPaymentMethodChange('Card')}
                             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border-2 transition-all font-bold text-sm ${paymentMethod === 'Card'
-                                    ? 'border-blue-500 bg-blue-50 text-blue-500'
-                                    : 'border-white bg-white text-gray-400 hover:border-gray-200'
+                                ? 'border-blue-500 bg-blue-50 text-blue-500'
+                                : 'border-white bg-white text-gray-400 hover:border-gray-200'
                                 }`}
                         >
                             <CreditCard size={18} />
