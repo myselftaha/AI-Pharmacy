@@ -1,0 +1,19 @@
+2026/01/17-14:43:28.845 4ec Reusing MANIFEST C:\Users\HP\Pictures\AI-Pharmacy-main\.wwebjs_auth\session-client-one\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/01/17-14:43:28.848 4ec Recovering log #197
+2026/01/17-14:43:28.922 4ec Reusing old log C:\Users\HP\Pictures\AI-Pharmacy-main\.wwebjs_auth\session-client-one\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000197.log 
+2026/01/17-14:43:30.926 790 Level-0 table #205: started
+2026/01/17-14:43:30.963 790 Level-0 table #205: 251417 bytes OK
+2026/01/17-14:43:30.965 790 Delete type=0 #197
+2026/01/17-14:43:30.971 790 Manual compaction at level-0 from '\x00+\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00,\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/01/17-14:43:31.131 174c Compacting 1@1 + 4@2 files
+2026/01/17-14:43:31.398 174c Generated table #206@1: 64997 keys, 2239974 bytes
+2026/01/17-14:43:31.528 174c Generated table #207@1: 8255 keys, 2158083 bytes
+2026/01/17-14:43:31.752 174c Generated table #208@1: 25309 keys, 2204540 bytes
+2026/01/17-14:43:31.870 174c Generated table #209@1: 45003 keys, 1232080 bytes
+2026/01/17-14:43:31.871 174c Compacted 1@1 + 4@2 files => 7834677 bytes
+2026/01/17-14:43:31.876 174c compacted to: files[ 0 0 4 0 0 0 0 ]
+2026/01/17-14:43:31.877 174c Delete type=2 #199
+2026/01/17-14:43:31.879 174c Delete type=2 #200
+2026/01/17-14:43:31.879 174c Delete type=2 #201
+2026/01/17-14:43:31.879 174c Delete type=2 #202
+2026/01/17-14:43:31.879 174c Delete type=2 #205

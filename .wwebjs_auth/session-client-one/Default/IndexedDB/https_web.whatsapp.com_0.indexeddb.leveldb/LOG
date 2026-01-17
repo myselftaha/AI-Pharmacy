@@ -1,0 +1,19 @@
+2026/01/17-14:45:47.846 1cec Reusing MANIFEST C:\Users\HP\Pictures\AI-Pharmacy-main\.wwebjs_auth\session-client-one\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/01/17-14:45:47.848 1cec Recovering log #204
+2026/01/17-14:45:47.903 1cec Reusing old log C:\Users\HP\Pictures\AI-Pharmacy-main\.wwebjs_auth\session-client-one\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000204.log 
+2026/01/17-14:45:49.895 a80 Level-0 table #212: started
+2026/01/17-14:45:49.928 a80 Level-0 table #212: 238704 bytes OK
+2026/01/17-14:45:49.930 a80 Delete type=0 #204
+2026/01/17-14:45:49.975 1cec Manual compaction at level-0 from '\x00,\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00-\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/01/17-14:45:50.149 a80 Compacting 1@1 + 4@2 files
+2026/01/17-14:45:50.375 a80 Generated table #213@1: 65934 keys, 2243630 bytes
+2026/01/17-14:45:50.446 a80 Generated table #214@1: 8359 keys, 2159393 bytes
+2026/01/17-14:45:50.551 a80 Generated table #215@1: 25257 keys, 2204547 bytes
+2026/01/17-14:45:50.662 a80 Generated table #216@1: 45075 keys, 1244080 bytes
+2026/01/17-14:45:50.662 a80 Compacted 1@1 + 4@2 files => 7851650 bytes
+2026/01/17-14:45:50.664 a80 compacted to: files[ 0 0 4 0 0 0 0 ]
+2026/01/17-14:45:50.664 a80 Delete type=2 #206
+2026/01/17-14:45:50.664 a80 Delete type=2 #207
+2026/01/17-14:45:50.665 a80 Delete type=2 #208
+2026/01/17-14:45:50.665 a80 Delete type=2 #209
+2026/01/17-14:45:50.665 a80 Delete type=2 #212
