@@ -5,7 +5,7 @@ import qrcode from 'qrcode';
 
 // Global state
 let sock = null;
-let status = 'DISCONNECTED'; // DISCONNECTED, QR_READY, CONNECTED
+let status = 'DISCONNECTED'; // DISCONNECTED, CONNECTING, QR_READY, CONNECTED
 let qrCodeUrl = null;
 let reconnectAttempts = 0;
 
@@ -13,7 +13,8 @@ let reconnectAttempts = 0;
 export const initializeWhatsApp = async () => {
     try {
         if (sock) return; // Already initialized
-
+        
+        status = 'CONNECTING';
         console.log('[WHATSAPP] Initializing Baileys Socket...');
 
         // Use MongoDB Auth
@@ -21,71 +22,77 @@ export const initializeWhatsApp = async () => {
 
         sock = makeWASocket({
             auth: state,
-            logger: pino({ level: 'info' }),
-            printQRInTerminal: false, // Deprecated, we handle it manually
-            // Use a standard browser string to avoid being flagged
-            browser: ['Ubuntu', 'Chrome', '20.0.04'],
-            connectTimeoutMs: 60000,
-            syncFullHistory: false, // Crucial for faster startup and less timeouts
+            logger: pino({ level: 'silent' }), // Reduce noise
+            printQRInTerminal: false,
+            browser: ['AI Pharmacy', 'Chrome', '1.0.0'],
+            connectTimeoutMs: 30000, // Shorter timeout for serverless
+            syncFullHistory: false,
             generateHighQualityLinkPreview: true,
+            // Add long-lived connection settings if not serverless
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 10000,
         });
 
         // Event: Credentials Updated
         sock.ev.on('creds.update', saveCreds);
 
-        // Event: Connection Update (QR, Open, Close)
+        // Event: Connection Update
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                console.log('[WHATSAPP] QR Code RAW string received length:', qr.length);
+                console.log('[WHATSAPP] QR Code received');
                 status = 'QR_READY';
                 try {
                     qrCodeUrl = await qrcode.toDataURL(qr);
-                    console.log('[WHATSAPP] QR Code Image Generated Successfully');
                 } catch (err) {
                     console.error('[WHATSAPP] QR Generation Error:', err);
                 }
             }
 
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('[WHATSAPP] Connection closed. Reconnecting:', shouldReconnect);
+                const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                
+                console.log(`[WHATSAPP] Connection closed (${statusCode}). Reconnecting: ${shouldReconnect}`);
+                
                 status = 'DISCONNECTED';
                 sock = null;
                 qrCodeUrl = null;
 
-                // Reconnect loop (only if not logged out explicitly)
-                if (shouldReconnect) {
-                    if (reconnectAttempts < 5) {
-                        reconnectAttempts++;
-                        setTimeout(initializeWhatsApp, 3000); // Retry after 3s
-                    } else {
-                        console.log('[WHATSAPP] Max reconnect attempts reached.');
-                    }
-                } else {
-                    console.log('[WHATSAPP] Logged out. Waiting for manual re-init.');
+                if (shouldReconnect && reconnectAttempts < 3) {
+                    reconnectAttempts++;
+                    setTimeout(initializeWhatsApp, 2000);
+                } else if (!shouldReconnect) {
+                    reconnectAttempts = 0;
                 }
             }
 
             if (connection === 'open') {
-                console.log('[WHATSAPP] Connection Opened (Connected)');
+                console.log('[WHATSAPP] Connection Opened');
                 status = 'CONNECTED';
                 qrCodeUrl = null;
                 reconnectAttempts = 0;
             }
         });
 
-        // Initialize listeners immediately
     } catch (error) {
         console.error('[WHATSAPP] Init Error:', error);
         status = 'DISCONNECTED';
+        sock = null;
     }
 };
 
 export const getStatus = () => {
+    // If we're on Vercel and disconnected but might have a session, 
+    // we return CONNECTING and trigger a silent init if not already running
+    if (status === 'DISCONNECTED' && !sock) {
+        // We don't await here to avoid blocking the status request
+        initializeWhatsApp().catch(e => console.error('Silent Init Error:', e));
+    }
+
     return {
-        status: status === 'CONNECTED' ? 'AUTHENTICATED' : status, // Map to frontend expected string
+        status: status === 'CONNECTED' ? 'AUTHENTICATED' : status,
         qrCodeUrl,
         info: sock?.user ? {
             wid: sock.user.id,
@@ -98,18 +105,19 @@ export const getStatus = () => {
 export const sendMessage = async (number, message) => {
     console.log(`[WHATSAPP] Sending to ${number}...`);
 
-    // Helper to ensure connection exists (specifically for Vercel/Serverless hot-start)
+    // Ensure connection exists
     if (!sock) {
-        console.warn('[WHATSAPP] Socket not ready, attempting to initialize...');
         await initializeWhatsApp();
-        // Wait minor delay for connection? simpler to throw error if not ready instant
-        // Baileys 'connect' is async. If we just called init, we might need to wait.
-        // For simplicity, we assume 'init' was called at server start or we fail fast.
-        throw new Error('WhatsApp connecting... please try again in 5 seconds.');
+        // Wait a bit for connection if we just triggered it
+        let waitCount = 0;
+        while (status !== 'CONNECTED' && waitCount < 10) {
+            await new Promise(r => setTimeout(r, 1000));
+            waitCount++;
+        }
     }
 
     if (status !== 'CONNECTED') {
-        throw new Error('WhatsApp not connected. Please check status in Settings.');
+        throw new Error('WhatsApp is connecting. Please wait a few seconds.');
     }
 
     try {
