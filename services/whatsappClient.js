@@ -1,5 +1,5 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
-import { useMongoDBAuthState } from './mongoAuthState.js';
+import { makeWASocket, DisconnectReason } from '@whiskeysockets/baileys';
+import { useMongoDBAuthState, clearAllSessions } from './mongoAuthState.js';
 import pino from 'pino';
 import qrcode from 'qrcode';
 
@@ -21,10 +21,13 @@ export const initializeWhatsApp = async () => {
 
         sock = makeWASocket({
             auth: state,
-            printQRInTerminal: true, // Helpful for local dev logs
-            logger: pino({ level: 'silent' }), // Reduce noise
-            browser: ['AI Pharmacy POS', 'Chrome', '1.0.0'], // Spoof browser to look legit
+            logger: pino({ level: 'info' }),
+            printQRInTerminal: false, // Deprecated, we handle it manually
+            // Use a standard browser string to avoid being flagged
+            browser: ['Ubuntu', 'Chrome', '20.0.04'],
             connectTimeoutMs: 60000,
+            syncFullHistory: false, // Crucial for faster startup and less timeouts
+            generateHighQualityLinkPreview: true,
         });
 
         // Event: Credentials Updated
@@ -35,10 +38,11 @@ export const initializeWhatsApp = async () => {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                console.log('[WHATSAPP] QR Code received');
+                console.log('[WHATSAPP] QR Code RAW string received length:', qr.length);
                 status = 'QR_READY';
                 try {
                     qrCodeUrl = await qrcode.toDataURL(qr);
+                    console.log('[WHATSAPP] QR Code Image Generated Successfully');
                 } catch (err) {
                     console.error('[WHATSAPP] QR Generation Error:', err);
                 }
@@ -119,10 +123,6 @@ export const sendMessage = async (number, message) => {
             jid = `${jid}@s.whatsapp.net`;
         }
 
-        // Verify existence (Optional, can slow things down. Baileys sends anyway usually)
-        // const [result] = await sock.onWhatsApp(jid);
-        // if (!result?.exists) throw new Error('Number not found on WhatsApp');
-
         // Send
         await sock.sendMessage(jid, { text: message });
         console.log(`[WHATSAPP] Message sent to ${jid}`);
@@ -137,15 +137,7 @@ export const sendMessage = async (number, message) => {
 export const logout = async () => {
     try {
         if (sock) {
-            await sock.logout(); // This will trigger connection.close with loggedOut reason
-            // Also clear MongoDB session manually to be safe?
-            // The logout event should clean local state, but we might want to wipe DB.
-            const { state } = await useMongoDBAuthState('whatsapp_sessions');
-            if (state.keys.set) {
-                // We can't easily "clear all" with the current simple adapter without a specialized method,
-                // but Baileys logout usually sends a signal to keys to clear specific data.
-                // We will rely on Baileys logic.
-            }
+            await sock.logout();
         }
         sock = null;
         status = 'DISCONNECTED';
@@ -153,6 +145,37 @@ export const logout = async () => {
         return { success: true };
     } catch (error) {
         console.error('[WHATSAPP] Logout Error:', error);
+        // Continue to cleanup local state even if logout fails
+        sock = null;
+        status = 'DISCONNECTED';
+        return { success: true };
+    }
+};
+
+export const hardReset = async () => {
+    console.log('[WHATSAPP] Hard Resetting...');
+    try {
+        // 1. Close Socket
+        if (sock) {
+            sock.end(new Error('Resetting'));
+            sock = null;
+        }
+
+        // 2. Wipe DB
+        await clearAllSessions();
+
+        // 3. Re-Init
+        status = 'DISCONNECTED';
+        qrCodeUrl = null;
+
+        // Small delay to ensure DB write propagates (optional but safe)
+        setTimeout(() => {
+            initializeWhatsApp();
+        }, 1000);
+
+        return { success: true };
+    } catch (error) {
+        console.error('[WHATSAPP] Hard Reset Error:', error);
         throw error;
     }
 };

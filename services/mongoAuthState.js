@@ -10,26 +10,42 @@ const sessionSchema = new mongoose.Schema({
 // Prevent model overwrite if file is reloaded
 const Session = mongoose.models.WhatsAppSession || mongoose.model('WhatsAppSession', sessionSchema);
 
-export const useMongoDBAuthState = async (collectionName = 'whatsapp_sessions') => {
-    // We ignore collectionName in this mongoose impl, but keep sig for compatibility
+export const clearAllSessions = async () => {
+    try {
+        await Session.deleteMany({});
+        console.log('[MongoDB] All WhatsApp sessions cleared.');
+        return true;
+    } catch (error) {
+        console.error('[MongoDB] Error clearing sessions:', error);
+        return false;
+    }
+};
 
-    // 1. Read Creds
+export const useMongoDBAuthState = async (collectionName = 'whatsapp_sessions') => {
+
+    // 1. Read Data (With Buffer Reviver)
     const readData = async (id) => {
         try {
-            const data = await Session.findById(id);
-            return data ? data.data : null;
+            const doc = await Session.findById(id);
+            if (!doc || !doc.data) return null;
+            // Deserializing: JSON.stringify to ensure it's a string, then parse with buffer reviver
+            return JSON.parse(JSON.stringify(doc.data), BufferJSON.reviver);
         } catch (error) {
             console.error('Error reading auth data:', error);
             return null;
         }
     };
 
+    // 2. Write Data (With Buffer Replacer)
     const writeData = async (id, data) => {
         try {
+            // Serializing: Convert Buffers to JSON-friendly format
+            const serialized = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
+
             // Upsert (Update if exists, Insert if not)
             await Session.findByIdAndUpdate(
                 id,
-                { _id: id, data: data },
+                { _id: id, data: serialized },
                 { upsert: true, new: true }
             );
         } catch (error) {
@@ -45,8 +61,16 @@ export const useMongoDBAuthState = async (collectionName = 'whatsapp_sessions') 
         }
     };
 
-    // Load credentials
-    const creds = (await readData('creds')) || initAuthCreds();
+    // --- Handling Credentials ---
+    let creds;
+    try {
+        const stored = await readData('creds');
+        creds = stored || initAuthCreds();
+    } catch (error) {
+        console.warn('Corrupt credentials found, resetting session...', error);
+        await Session.deleteMany({}); // Wipe if corrupt
+        creds = initAuthCreds();
+    }
 
     return {
         state: {

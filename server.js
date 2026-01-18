@@ -7554,13 +7554,11 @@ app.post('/api/whatsapp/send', authenticateToken, async (req, res) => {
     }
 });
 
-// Logout
-app.post('/api/whatsapp/logout', authenticateToken, async (req, res) => {
+// Hard Reset / Logout
+app.post('/api/whatsapp/reset', authenticateToken, async (req, res) => {
     try {
-        await whatsappClient.logout();
-        // Re-initialize to allow new connection
-        whatsappClient.initializeWhatsApp();
-        res.json({ message: 'Logged out successfully' });
+        await whatsappClient.hardReset(); // We will implement this
+        res.json({ message: 'Session reset successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

@@ -16,6 +16,7 @@ const WhatsAppSettings = () => {
             const res = await fetch(`${API_URL}/api/whatsapp/status`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (res.status === 500) throw new Error('Server Error');
             const data = await res.json();
 
             setStatus(data.status);
@@ -45,20 +46,22 @@ const WhatsAppSettings = () => {
         }
     };
 
-    const handleLogout = async () => {
-        if (!window.confirm('Are you sure you want to disconnect WhatsApp? You will need to scan QR again.')) return;
+    const handleReset = async () => {
+        if (!window.confirm('This will wipe all WhatsApp session data and restart the client. Continue?')) return;
 
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            await fetch(`${API_URL}/api/whatsapp/logout`, {
+            // Use the new reset endpoint
+            await fetch(`${API_URL}/api/whatsapp/reset`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            showToast('Disconnected successfully', 'success');
-            fetchStatus();
+            showToast('Session reset. generating new QR...', 'success');
+            // Wait a bit then fetch status
+            setTimeout(fetchStatus, 3000);
         } catch (err) {
-            showToast('Failed to logout', 'error');
+            showToast('Failed to reset session', 'error');
         } finally {
             setLoading(false);
         }
@@ -96,8 +99,8 @@ const WhatsAppSettings = () => {
                         </p>
                     </div>
                     <div className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 ${status === 'AUTHENTICATED' || status === 'READY'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-yellow-100 text-yellow-700'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-yellow-100 text-yellow-700'
                         }`}>
                         {status === 'AUTHENTICATED' || status === 'READY' ? (
                             <><CheckCircle size={16} /> Connected</>
@@ -118,13 +121,22 @@ const WhatsAppSettings = () => {
                         ) : (
                             <div className="text-center py-8">
                                 <p className="text-gray-500 mb-4">Client is initializing or disconnected...</p>
-                                <button
-                                    onClick={handleInit}
-                                    disabled={loading}
-                                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
-                                >
-                                    {loading ? 'Initializing...' : 'Initialize Client'}
-                                </button>
+                                <div className="flex gap-2 justify-center">
+                                    <button
+                                        onClick={handleInit}
+                                        disabled={loading}
+                                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
+                                    >
+                                        {loading ? 'Initializing...' : 'Initialize Client'}
+                                    </button>
+                                    <button
+                                        onClick={handleReset}
+                                        disabled={loading}
+                                        className="px-6 py-2 bg-gray-100 text-red-600 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        <RefreshCw size={16} /> Force Reset
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -147,12 +159,12 @@ const WhatsAppSettings = () => {
                         </div>
 
                         <button
-                            onClick={handleLogout}
+                            onClick={handleReset}
                             disabled={loading}
                             className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-all font-medium w-full justify-center"
                         >
                             <LogOut size={16} />
-                            Disconnect Session
+                            Disconnect & Reset
                         </button>
                     </div>
                 )}
