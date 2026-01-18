@@ -1,175 +1,158 @@
-import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { useMongoDBAuthState } from './mongoAuthState.js';
+import pino from 'pino';
 import qrcode from 'qrcode';
-import process from 'process';
 
-// Global error handlers to prevent server crash on internal WWebJS/Puppeteer failures
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (err, origin) => {
-    console.error(`[CRITICAL] Uncaught Exception: ${err.message}\nOrigin: ${origin}\nStack: ${err.stack}`);
-});
-
-let client;
+// Global state
+let sock = null;
+let status = 'DISCONNECTED'; // DISCONNECTED, QR_READY, CONNECTED
 let qrCodeUrl = null;
-let status = 'DISCONNECTED'; // DISCONNECTED, QR_READY, READY, AUTHENTICATED
+let reconnectAttempts = 0;
 
+// Initialize
 export const initializeWhatsApp = async () => {
     try {
-        if (client) return;
+        if (sock) return; // Already initialized
 
-        console.log('Initializing WhatsApp Client...');
+        console.log('[WHATSAPP] Initializing Baileys Socket...');
 
-        // Initialize client with local auth to save session
-        client = new Client({
-            authStrategy: new LocalAuth({
-                clientId: 'client-one',
-                dataPath: './.wwebjs_auth'
-            }),
-            puppeteer: {
-                headless: 'new', // Using 'new' headless mode is more stable for WWebJS
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox'
-                ]
-            }
+        // Use MongoDB Auth
+        const { state, saveCreds } = await useMongoDBAuthState('whatsapp_sessions');
+
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: true, // Helpful for local dev logs
+            logger: pino({ level: 'silent' }), // Reduce noise
+            browser: ['AI Pharmacy POS', 'Chrome', '1.0.0'], // Spoof browser to look legit
+            connectTimeoutMs: 60000,
         });
 
-        client.on('qr', async (qr) => {
-            console.log('WhatsApp QR Code Received');
-            try {
-                qrCodeUrl = await qrcode.toDataURL(qr);
+        // Event: Credentials Updated
+        sock.ev.on('creds.update', saveCreds);
+
+        // Event: Connection Update (QR, Open, Close)
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
+
+            if (qr) {
+                console.log('[WHATSAPP] QR Code received');
                 status = 'QR_READY';
-            } catch (err) {
-                console.error('Error generating QR code:', err);
+                try {
+                    qrCodeUrl = await qrcode.toDataURL(qr);
+                } catch (err) {
+                    console.error('[WHATSAPP] QR Generation Error:', err);
+                }
+            }
+
+            if (connection === 'close') {
+                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('[WHATSAPP] Connection closed. Reconnecting:', shouldReconnect);
+                status = 'DISCONNECTED';
+                sock = null;
+                qrCodeUrl = null;
+
+                // Reconnect loop (only if not logged out explicitly)
+                if (shouldReconnect) {
+                    if (reconnectAttempts < 5) {
+                        reconnectAttempts++;
+                        setTimeout(initializeWhatsApp, 3000); // Retry after 3s
+                    } else {
+                        console.log('[WHATSAPP] Max reconnect attempts reached.');
+                    }
+                } else {
+                    console.log('[WHATSAPP] Logged out. Waiting for manual re-init.');
+                }
+            }
+
+            if (connection === 'open') {
+                console.log('[WHATSAPP] Connection Opened (Connected)');
+                status = 'CONNECTED';
+                qrCodeUrl = null;
+                reconnectAttempts = 0;
             }
         });
 
-        client.on('ready', () => {
-            console.log('WhatsApp Client is ready!');
-            status = 'READY';
-            qrCodeUrl = null; // Clear QR code once connected
-        });
-
-        client.on('authenticated', () => {
-            console.log('WhatsApp Authenticated');
-            status = 'AUTHENTICATED';
-        });
-
-        client.on('auth_failure', (msg) => {
-            console.error('WhatsApp Authentication Failure:', msg);
-            status = 'DISCONNECTED';
-        });
-
-        client.on('disconnected', (reason) => {
-            console.log('WhatsApp Disconnected:', reason);
-            status = 'DISCONNECTED';
-            client = null;
-            // Optional: Auto-reconnect logic could go here
-        });
-
-        await client.initialize();
-
+        // Initialize listeners immediately
     } catch (error) {
-        console.error('Error initializing WhatsApp:', error);
+        console.error('[WHATSAPP] Init Error:', error);
         status = 'DISCONNECTED';
     }
 };
 
 export const getStatus = () => {
     return {
-        status,
+        status: status === 'CONNECTED' ? 'AUTHENTICATED' : status, // Map to frontend expected string
         qrCodeUrl,
-        info: client?.info ? {
-            wid: client.info.wid,
-            pushname: client.info.pushname,
-            platform: client.info.platform
+        info: sock?.user ? {
+            wid: sock.user.id,
+            pushname: sock.user.name || 'AI Pharmacy',
+            platform: 'Baileys'
         } : null
     };
 };
 
 export const sendMessage = async (number, message) => {
-    console.log(`[WHATSAPP-CLIENT] Attempting to send message to ${number}. Status: ${status}`);
+    console.log(`[WHATSAPP] Sending to ${number}...`);
 
-    if (!client) {
-        throw new Error('WhatsApp client not initialized');
+    // Helper to ensure connection exists (specifically for Vercel/Serverless hot-start)
+    if (!sock) {
+        console.warn('[WHATSAPP] Socket not ready, attempting to initialize...');
+        await initializeWhatsApp();
+        // Wait minor delay for connection? simpler to throw error if not ready instant
+        // Baileys 'connect' is async. If we just called init, we might need to wait.
+        // For simplicity, we assume 'init' was called at server start or we fail fast.
+        throw new Error('WhatsApp connecting... please try again in 5 seconds.');
     }
 
-    if (status !== 'READY' && status !== 'AUTHENTICATED') {
-        throw new Error(`WhatsApp is not connected (Status: ${status}). Please scan QR code.`);
+    if (status !== 'CONNECTED') {
+        throw new Error('WhatsApp not connected. Please check status in Settings.');
     }
 
     try {
-        let cleanNumber = number.toString().replace(/\s+/g, '').replace(/[+\-()]/g, '');
+        // Format Number
+        let jid = number.toString().replace(/\D/g, ''); // Remove non-digits
+        if (!jid.includes('@s.whatsapp.net')) {
+            // Basic formatting for PK
+            if (jid.startsWith('03')) jid = '92' + jid.substring(1);
+            if (!jid.startsWith('92') && jid.length === 10) jid = '92' + jid;
 
-        // Remove leading 92 if present to avoid double prefixing
-        if (cleanNumber.startsWith('92') && cleanNumber.length > 10) {
-            // Already includes country code
-        } else if (cleanNumber.startsWith('0')) {
-            cleanNumber = '92' + cleanNumber.substring(1);
-        } else if (cleanNumber.length === 10) {
-            cleanNumber = '92' + cleanNumber;
+            jid = `${jid}@s.whatsapp.net`;
         }
 
-        console.log(`[WHATSAPP-CLIENT] Validating number: ${cleanNumber}`);
+        // Verify existence (Optional, can slow things down. Baileys sends anyway usually)
+        // const [result] = await sock.onWhatsApp(jid);
+        // if (!result?.exists) throw new Error('Number not found on WhatsApp');
 
-        // Get the official ID for the number (ensures it's registered and formatted correctly)
-        let chatId;
-        try {
-            const numberId = await client.getNumberId(cleanNumber);
-            if (!numberId) {
-                throw new Error(`The number ${cleanNumber} does not appear to be registered on WhatsApp. Please check the number.`);
-            }
-            chatId = numberId._serialized;
-        } catch (err) {
-            console.warn(`[WHATSAPP-CLIENT] getNumberId failed for ${cleanNumber}:`, err.message);
-            // Fallback to manual construction if verification fails (sometimes WWebJS verification is flaky)
-            chatId = `${cleanNumber}@c.us`;
-        }
+        // Send
+        await sock.sendMessage(jid, { text: message });
+        console.log(`[WHATSAPP] Message sent to ${jid}`);
+        return { success: true };
 
-        console.log(`[WHATSAPP-CLIENT] Sending to ${chatId}...`);
-
-        // Send with sendSeen: false to avoid the 'markedUnread' bug in WWebJS
-        const response = await client.sendMessage(chatId, message, { sendSeen: false }).catch(err => {
-            if (err && err.message && (err.message.includes('markedUnread') || err.message.includes('reading \'markedUnread\''))) {
-                // Secondary fallback: if even with sendSeen: false it fails, it might be a deeper context issue
-                console.log(`[WHATSAPP-CLIENT] Fatal 'markedUnread' error even with sendSeen:false. Attempting final fallback.`);
-                throw new Error('WhatsApp internal error (markedUnread). This usually happens when the chat session is unstable. Please logout and login again from the Settings page.');
-            }
-            throw err;
-        });
-
-        console.log(`[WHATSAPP-CLIENT] Successfully sent to ${chatId}`);
-        return { success: true, response };
     } catch (error) {
-        console.error('[WHATSAPP-CLIENT] Final Send Error:', error);
-
-        let finalMessage = error.message || 'Failed to send WhatsApp message';
-
-        // Humanize common technical errors
-        if (finalMessage.includes('markedUnread')) {
-            finalMessage = "WhatsApp session sync issue. Please go to Settings, logout from WhatsApp, and scan the QR code again.";
-        } else if (finalMessage === 't') {
-            finalMessage = "WhatsApp session timeout. Please refresh and try again, or re-connect in Settings.";
-        }
-
-        throw new Error(finalMessage);
+        console.error('[WHATSAPP] Send Error:', error);
+        throw new Error(error.message || 'Failed to send message');
     }
 };
 
 export const logout = async () => {
     try {
-        if (client) {
-            await client.logout();
-            client = null;
-            status = 'DISCONNECTED';
-            qrCodeUrl = null;
+        if (sock) {
+            await sock.logout(); // This will trigger connection.close with loggedOut reason
+            // Also clear MongoDB session manually to be safe?
+            // The logout event should clean local state, but we might want to wipe DB.
+            const { state } = await useMongoDBAuthState('whatsapp_sessions');
+            if (state.keys.set) {
+                // We can't easily "clear all" with the current simple adapter without a specialized method,
+                // but Baileys logout usually sends a signal to keys to clear specific data.
+                // We will rely on Baileys logic.
+            }
         }
+        sock = null;
+        status = 'DISCONNECTED';
+        qrCodeUrl = null;
         return { success: true };
     } catch (error) {
-        console.error('Error logging out:', error);
+        console.error('[WHATSAPP] Logout Error:', error);
         throw error;
     }
 };

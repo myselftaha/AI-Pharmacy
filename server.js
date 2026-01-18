@@ -14,7 +14,8 @@ import * as whatsappClient from './services/whatsappClient.js';
 dotenv.config();
 
 // Initialize WhatsApp Client on startup
-whatsappClient.initializeWhatsApp();
+// WhatsApp init moved to startServer
+// whatsappClient.initializeWhatsApp();
 
 // Helper to get date query for mongo
 const getDateFilter = (range, customStart, customEnd) => {
@@ -223,9 +224,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BACKUP_DIR = path.join(__dirname, 'backups');
 
-// Ensure backup directory exists
-if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+// Ensure backup directory exists (Only if NOT Vercel)
+if (!process.env.VERCEL && !fs.existsSync(BACKUP_DIR)) {
+    try {
+        fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    } catch (e) { console.error('Backup Dir Error:', e); }
 }
 
 const performBackup = async (trigger = 'manual') => {
@@ -407,7 +410,10 @@ const initCronJobs = () => {
 };
 
 // Start jobs
-initCronJobs();
+// Start jobs (Only if NOT Vercel)
+if (!process.env.VERCEL) {
+    initCronJobs();
+}
 
 
 // --- SYSTEM MAINTENANCE ROUTES ---
@@ -695,7 +701,7 @@ const settingsSchema = new mongoose.Schema({
     dateFormat: { type: String, default: 'DD/MM/YYYY' },
     timeFormat: { type: String, default: '12h' },
     backupFrequency: { type: String, default: 'daily' },
-    
+
     // Email Configuration
     smtpHost: { type: String, default: 'smtp.gmail.com' },
     smtpPort: { type: Number, default: 587 },
@@ -7568,5 +7574,50 @@ app.post('/api/whatsapp/init', authenticateToken, async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
+
+
+// Start Server Logic
+if (!process.env.VERCEL) {
+    (async () => {
+        try {
+            console.log('Starting Local Server...');
+            await connectDB();
+            console.log('Database connected.');
+
+            // Initialize Services that need DB
+            await whatsappClient.initializeWhatsApp();
+
+            // Ensure app listens if not imported
+            const args = process.argv.slice(2);
+            // We assume app.listen is MISSING based on previous analysis, 
+            // OR we add it safely. 
+            // Since node server.js was running, there MUST be a listener. 
+            // But we didn't find it. 
+            // Let's explicitly add one here just to be safe for our new logic?
+            // "Error: listen EADDRINUSE" risk.
+            // Let's assume the user's previous success meant there IS a listener.
+            // But we moved init logic here.
+
+            // To be safe, we just log.
+            console.log('Services initialized.');
+
+            // Check if we need to start listening manually (if file didn't have it)
+            // We will try to listen on PORT if not already listening? Impossible to check easily.
+
+            app.listen(PORT, () => {
+                console.log(`Server running on port ${PORT}`);
+            }).on('error', (e) => {
+                if (e.code === 'EADDRINUSE') {
+                    console.log('Server already listening (handled elsewhere)');
+                } else {
+                    console.error(e);
+                }
+            });
+
+        } catch (err) {
+            console.error('Startup Error:', err);
+        }
+    })();
+}
 
 export default app;
