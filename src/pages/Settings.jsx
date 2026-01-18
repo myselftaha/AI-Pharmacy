@@ -672,7 +672,11 @@ const Settings = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="col-span-1 md:col-span-2 bg-blue-50 border border-blue-100 rounded-lg p-4">
                                             <p className="text-sm text-blue-800">
-                                                <strong>Note:</strong> Your email password is securely stored in the server configuration and is not shown here.
+                                                <strong>Note:</strong> You must use a <strong>Google App Password</strong>, not your regular Gmail password.
+                                                <br />
+                                                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-blue-900">
+                                                    Click here to generate one →
+                                                </a>
                                             </p>
                                         </div>
 
@@ -700,6 +704,31 @@ const Settings = () => {
                                                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all"
                                             />
                                             <p className="text-xs text-gray-500 mt-1">The Gmail account used to send the emails.</p>
+                                        </div>
+
+                                        <div className="col-span-1 md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Google App Password</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="password"
+                                                    name="smtpPassword"
+                                                    value={formData.smtpPassword || ''}
+                                                    onChange={handleChange}
+                                                    placeholder="e.g. abcd efgh ijkl mnop"
+                                                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all pr-12"
+                                                />
+                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                                    <div className="h-5 w-5 text-gray-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Paste your 16-character App Password here.{' '}
+                                                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                                    Generate New
+                                                </a>
+                                            </p>
                                         </div>
                                     </div>
                                 </div>

@@ -706,6 +706,7 @@ const settingsSchema = new mongoose.Schema({
     smtpHost: { type: String, default: 'smtp.gmail.com' },
     smtpPort: { type: Number, default: 587 },
     smtpUser: { type: String, default: '' },
+    smtpPassword: { type: String, default: '' }, // Start with empty, fallback to env if needed in logic
     ownerEmail: { type: String, default: '' }, // Where notifications are sent
 
     // Audit

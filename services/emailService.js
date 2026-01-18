@@ -12,7 +12,7 @@ const createTransporter = (settings) => {
     secure: (parseInt(settings?.smtpPort) === 465) || (process.env.SMTP_SECURE === 'true'),
     auth: {
       user: settings?.smtpUser || process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
+      pass: settings?.smtpPassword || process.env.SMTP_PASS
     }
   });
 };
