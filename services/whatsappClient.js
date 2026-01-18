@@ -8,12 +8,13 @@ let sock = null;
 let status = 'DISCONNECTED'; // DISCONNECTED, CONNECTING, QR_READY, CONNECTED
 let qrCodeUrl = null;
 let reconnectAttempts = 0;
+let isInitializing = false;
 
 // Initialize
 export const initializeWhatsApp = async () => {
     try {
-        if (sock) return; // Already initialized
-        
+        if (sock || isInitializing) return;
+        isInitializing = true;
         status = 'CONNECTING';
         console.log('[WHATSAPP] Initializing Baileys Socket...');
 
@@ -53,9 +54,9 @@ export const initializeWhatsApp = async () => {
             if (connection === 'close') {
                 const statusCode = (lastDisconnect?.error)?.output?.statusCode;
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                
+
                 console.log(`[WHATSAPP] Connection closed (${statusCode}). Reconnecting: ${shouldReconnect}`);
-                
+
                 status = 'DISCONNECTED';
                 sock = null;
                 qrCodeUrl = null;
@@ -80,14 +81,14 @@ export const initializeWhatsApp = async () => {
         console.error('[WHATSAPP] Init Error:', error);
         status = 'DISCONNECTED';
         sock = null;
+    } finally {
+        isInitializing = false;
     }
 };
 
 export const getStatus = () => {
-    // If we're on Vercel and disconnected but might have a session, 
-    // we return CONNECTING and trigger a silent init if not already running
-    if (status === 'DISCONNECTED' && !sock) {
-        // We don't await here to avoid blocking the status request
+    // Silent init ONLY if we haven't reached max retries and not already initializing
+    if (status === 'DISCONNECTED' && !sock && !isInitializing && reconnectAttempts < 3) {
         initializeWhatsApp().catch(e => console.error('Silent Init Error:', e));
     }
 

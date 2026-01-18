@@ -111,23 +111,25 @@ const WhatsAppSettings = () => {
                 </div>
 
                 {/* QR Code Section */}
-                {(status === 'QR_READY' || status === 'DISCONNECTED') && (
+                {(status === 'QR_READY' || status === 'DISCONNECTED' || status === 'CONNECTING') && (
                     <div className="flex flex-col items-center justify-center p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                        {qrCodeUrl ? (
+                        {status === 'QR_READY' && qrCodeUrl ? (
                             <>
                                 <img src={qrCodeUrl} alt="WhatsApp QR Code" className="w-64 h-64 border-4 border-white rounded-lg shadow-sm" />
                                 <p className="mt-4 text-gray-600 text-sm font-medium animate-pulse">Scan with WhatsApp (Linked Devices)</p>
                             </>
                         ) : (
                             <div className="text-center py-8">
-                                <p className="text-gray-500 mb-4">Client is initializing or disconnected...</p>
+                                <p className="text-gray-500 mb-4">
+                                    {status === 'CONNECTING' ? 'Attempting to restore session...' : 'Client is disconnected or initialization failed.'}
+                                </p>
                                 <div className="flex gap-2 justify-center">
                                     <button
                                         onClick={handleInit}
-                                        disabled={loading}
+                                        disabled={loading || status === 'CONNECTING'}
                                         className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
                                     >
-                                        {loading ? 'Initializing...' : 'Initialize Client'}
+                                        {status === 'CONNECTING' ? 'Connecting...' : 'Try Connect'}
                                     </button>
                                     <button
                                         onClick={handleReset}
