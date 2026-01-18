@@ -1543,6 +1543,37 @@ app.post('/api/users/login', async (req, res) => {
     }
 });
 
+// Verify Password (for confirming sensitive operations like settings save)
+app.post('/api/auth/verify-password', authenticateToken, async (req, res) => {
+    try {
+        const { password } = req.body;
+
+        if (!password) {
+            return res.status(400).json({ valid: false, message: 'Password is required' });
+        }
+
+        // Get the authenticated user from JWT
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ valid: false, message: 'User not found' });
+        }
+
+        // Compare password with stored hash
+        const isMatch = await bcrypt.compare(password, user.passwordHash);
+
+        if (!isMatch) {
+            return res.status(401).json({ valid: false, message: 'Incorrect password' });
+        }
+
+        res.json({ valid: true, message: 'Password verified successfully' });
+    } catch (err) {
+        console.error('[AUTH] Password verification error:', err);
+        res.status(500).json({ valid: false, message: 'Verification failed' });
+    }
+});
+
+
 // List Users
 app.get('/api/users', authenticateToken, authorizeRoles('Admin', 'Super Admin', 'Owner'), async (req, res) => {
     try {

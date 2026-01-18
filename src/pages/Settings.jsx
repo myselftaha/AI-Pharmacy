@@ -8,6 +8,7 @@ import {
 import API_URL from '../config/api';
 import TabNavigation from '../components/common/TabNavigation';
 import WhatsAppSettings from '../components/settings/WhatsAppSettings';
+import PasswordConfirmModal from '../components/common/PasswordConfirmModal';
 
 const Settings = () => {
     const { settings, updateSettings, restoreDefaults, loading } = useSettings();
@@ -17,6 +18,8 @@ const Settings = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [backups, setBackups] = useState([]);
     const [loadingBackups, setLoadingBackups] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [pendingAction, setPendingAction] = useState(null); // 'save' or 'restore'
 
     const fetchBackups = async () => {
         try {
@@ -142,6 +145,50 @@ const Settings = () => {
         });
     };
 
+    // Verify password with backend
+    const verifyPassword = async (password) => {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/api/auth/verify-password`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+        if (!data.valid) {
+            throw new Error('Incorrect password');
+        }
+    };
+
+    // Execute pending action after password verification
+    const executeAction = async () => {
+        if (pendingAction === 'save') {
+            setIsSaving(true);
+            const result = await updateSettings(formData);
+            setIsSaving(false);
+
+            if (result.success) {
+                showToast(result.message, 'success');
+            } else {
+                showToast(result.message, 'error');
+            }
+        } else if (pendingAction === 'restore') {
+            setIsSaving(true);
+            const result = await restoreDefaults();
+            setIsSaving(false);
+
+            if (result.success) {
+                showToast(result.message, 'success');
+            } else {
+                showToast(result.message, 'error');
+            }
+        }
+        setPendingAction(null);
+    };
+
     const handleSave = async () => {
         // Validation for Business Settings
         if (activeTab === 'business') {
@@ -162,28 +209,16 @@ const Settings = () => {
             }
         }
 
-        setIsSaving(true);
-        const result = await updateSettings(formData);
-        setIsSaving(false);
-
-        if (result.success) {
-            showToast(result.message, 'success');
-        } else {
-            showToast(result.message, 'error');
-        }
+        // Show password modal instead of directly saving
+        setPendingAction('save');
+        setShowPasswordModal(true);
     };
 
     const handleRestore = async () => {
         if (window.confirm('Are you sure you want to restore default settings? This cannot be undone.')) {
-            setIsSaving(true);
-            const result = await restoreDefaults();
-            setIsSaving(false);
-
-            if (result.success) {
-                showToast(result.message, 'success');
-            } else {
-                showToast(result.message, 'error');
-            }
+            // Show password modal instead of directly restoring
+            setPendingAction('restore');
+            setShowPasswordModal(true);
         }
     };
 
@@ -921,6 +956,21 @@ const Settings = () => {
 
                 </div>
             </div>
+
+            {/* Password Confirmation Modal */}
+            <PasswordConfirmModal
+                isOpen={showPasswordModal}
+                onClose={() => {
+                    setShowPasswordModal(false);
+                    setPendingAction(null);
+                }}
+                onConfirm={async (password) => {
+                    await verifyPassword(password);
+                    await executeAction();
+                }}
+                title={pendingAction === 'restore' ? 'Confirm Restore Defaults' : 'Confirm Save Changes'}
+                message={`Enter your password to ${pendingAction === 'restore' ? 'restore default settings' : 'save changes'}.`}
+            />
         </div >
     );
 };
