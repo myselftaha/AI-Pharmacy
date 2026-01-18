@@ -36,4 +36,3 @@ auth_info_baileys
 # Backups
 backups/
 backups
-*.json
