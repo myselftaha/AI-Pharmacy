@@ -21,6 +21,7 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
     const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
     const [currentItemIndex, setCurrentItemIndex] = useState(null);
     const [suppliers, setSuppliers] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -288,7 +289,8 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
+        if (submitting) return;
 
         const invalidItem = orderItems.find(i => !i.medicineId);
         if (invalidItem) {
@@ -297,6 +299,7 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
         }
 
         try {
+            setSubmitting(true);
             // Prepare items with all required fields for backend
             const preparedItems = orderItems.map(item => ({
                 medicineId: item.medicineId,
@@ -345,6 +348,8 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
         } catch (error) {
             console.error('Error saving order:', error);
             showToast('Network error', 'error');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -518,9 +523,17 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
                         <button
                             type="submit"
                             onClick={handleSubmit}
-                            className="flex-1 px-6 py-2.5 bg-[#00c950] hover:bg-[#00b347] text-white rounded-lg font-medium text-sm transition-all shadow-sm"
+                            disabled={submitting}
+                            className={`flex-1 px-6 py-2.5 bg-[#00c950] hover:bg-[#00b347] text-white rounded-lg font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2 ${submitting ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
-                            Create Order
+                            {submitting ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create Order'
+                            )}
                         </button>
                     </div>
                 </div>

@@ -1788,7 +1788,7 @@ app.post('/api/supplies', authenticateToken, async (req, res) => {
         let medicineId = null;
 
         const effectivePackSize = parseInt(netContent) || 1;
-        const stockIncrease = parseInt(quantity) * effectivePackSize;
+        const stockIncrease = (parseInt(quantity) + (parseInt(freeQuantity) || 0)) * effectivePackSize;
 
         if (medicine) {
             // Update existing medicine
@@ -2404,6 +2404,7 @@ app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
                 });
 
                 const stockToAdd = parseInt(medicineData.stock || medicineData.Stock || 0) || 0;
+                const freeQuantityToAdd = parseInt(medicineData.freeQuantity || medicineData.FreeQuantity || medicineData.bonus || medicineData.Bonus || 0) || 0;
                 const costPrice = parseFloat(medicineData.costPrice || medicineData.CostPrice || medicineData.purchasePrice || 0) || 0;
                 const sellingPrice = parseFloat(medicineData.sellingPrice || medicineData.price || medicineData.Price || 0) || 0;
                 const mrp = parseFloat(medicineData.mrp || medicineData.MRP || 0) || sellingPrice;
@@ -2412,7 +2413,7 @@ app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
 
                 if (medicine) {
                     // Update existing medicine
-                    medicine.stock = (medicine.stock || 0) + (stockToAdd * packSize);
+                    medicine.stock = (medicine.stock || 0) + ((stockToAdd + freeQuantityToAdd) * packSize);
                     if (sellingPrice > 0) {
                         medicine.price = sellingPrice;
                         medicine.sellingPrice = sellingPrice;
@@ -2435,7 +2436,7 @@ app.post('/api/medicines/bulk-import', authenticateToken, async (req, res) => {
                         description: medicineData.description || medicineData.Description || '',
                         price: sellingPrice,
                         sellingPrice: sellingPrice,
-                        stock: stockToAdd * packSize,
+                        stock: (stockToAdd + freeQuantityToAdd) * packSize,
                         unit: medicineData.unit || medicineData.Unit || 'pcs',
                         netContent: medicineData.netContent || medicineData.NetContent || packSize.toString(),
                         category: medicineData.category || medicineData.Category || 'General',

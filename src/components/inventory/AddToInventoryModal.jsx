@@ -4,6 +4,7 @@ import { X, Search, Plus, Package, Tag, MapPin, Info, DollarSign, Percent, Save,
 const AddToInventoryModal = ({ isOpen, onClose, onConfirm, supplies }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedProduct, setSelectedProduct] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         genericName: '',
@@ -119,22 +120,30 @@ const AddToInventoryModal = ({ isOpen, onClose, onConfirm, supplies }) => {
         )
         : [];
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const handleSubmit = async (e) => {
+        if (e) e.preventDefault();
+        if (submitting) return;
         if (selectedProduct) {
-            onConfirm(selectedProduct._id || selectedProduct.id, {
-                ...formData,
-                stock: parseFloat(formData.stock),
-                packSize: parseInt(formData.packSize),
-                minStock: parseInt(formData.minStock),
-                price: parseFloat(formData.price),
-                costPrice: parseFloat(formData.costPrice),
-                mrp: parseFloat(formData.mrp),
-                discountPercentage: parseFloat(formData.discountPercentage),
-                cgstPercentage: parseFloat(formData.cgstPercentage),
-                sgstPercentage: parseFloat(formData.sgstPercentage),
-                igstPercentage: parseFloat(formData.igstPercentage)
-            });
+            setSubmitting(true);
+            try {
+                await onConfirm(selectedProduct._id || selectedProduct.id, {
+                    ...formData,
+                    stock: parseFloat(formData.stock),
+                    packSize: parseInt(formData.packSize),
+                    minStock: parseInt(formData.minStock),
+                    price: parseFloat(formData.price),
+                    costPrice: parseFloat(formData.costPrice),
+                    mrp: parseFloat(formData.mrp),
+                    discountPercentage: parseFloat(formData.discountPercentage),
+                    cgstPercentage: parseFloat(formData.cgstPercentage),
+                    sgstPercentage: parseFloat(formData.sgstPercentage),
+                    igstPercentage: parseFloat(formData.igstPercentage)
+                });
+            } catch (error) {
+                console.error("Error confirming inventory addition:", error);
+            } finally {
+                setSubmitting(false);
+            }
         }
     };
 
@@ -358,11 +367,20 @@ const AddToInventoryModal = ({ isOpen, onClose, onConfirm, supplies }) => {
                             </button>
                             <button
                                 type="submit"
-                                disabled={!selectedProduct}
-                                className="px-10 py-3 bg-gradient-to-r from-green-600 to-green-600 text-white rounded-2xl font-black text-xs hover:translate-y-[-2px] hover:shadow-lg hover:shadow-green-600/40 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none"
+                                disabled={!selectedProduct || submitting}
+                                className={`flex-1 px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-green-500/20 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
-                                <Save size={18} />
-                                Sync to Inventory
+                                {submitting ? (
+                                    <>
+                                        <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save size={18} />
+                                        Confirm Addition
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Package, Info, DollarSign, Percent } from 'lucide-react';
 
 const AddMedicineModal = ({ isOpen, onClose, onSave, suppliers, initialSupplier }) => {
+    const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         category: 'Antibiotics',
@@ -117,16 +118,25 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, suppliers, initialSupplier 
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onSave({
-            ...formData,
-            quantity: parseInt(formData.stock),
-            price: parseFloat(formData.sellPrice || formData.price),
-            sellingPrice: parseFloat(formData.sellPrice || formData.price),
-            purchaseCost: parseFloat(formData.purchaseCost)
-        });
-        onClose();
+        if (submitting) return;
+
+        try {
+            setSubmitting(true);
+            await onSave({
+                ...formData,
+                quantity: parseInt(formData.stock) || 0,
+                price: parseFloat(formData.sellPrice || formData.price) || 0,
+                sellingPrice: parseFloat(formData.sellPrice || formData.price) || 0,
+                purchaseCost: parseFloat(formData.purchaseCost) || 0,
+                packSize: parseInt(formData.netContent) || 1
+            });
+        } catch (error) {
+            console.error('Error saving medicine:', error);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const margin = formData.sellPrice && formData.purchaseCost ? (((parseFloat(formData.sellPrice) - parseFloat(formData.purchaseCost)) / parseFloat(formData.sellPrice)) * 100).toFixed(2) : '0.00';
@@ -243,10 +253,20 @@ const AddMedicineModal = ({ isOpen, onClose, onSave, suppliers, initialSupplier 
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 px-6 py-3 bg-[#00c950] hover:bg-[#00b347] text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-[#00c950]/20 active:scale-95 flex items-center justify-center gap-2"
+                            disabled={submitting}
+                            className={`flex-1 px-6 py-3 bg-[#00c950] hover:bg-[#00b347] text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-[#00c950]/20 active:scale-95 flex items-center justify-center gap-2 ${submitting ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
-                            <Save size={18} />
-                            Add Supply Record
+                            {submitting ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save size={18} />
+                                    Add Supply Record
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>
