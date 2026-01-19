@@ -177,12 +177,26 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
             const token = localStorage.getItem('token');
 
             // Check connection first
-            const statusRes = await fetch(`${API_URL}/api/whatsapp/status`, {
+            let statusRes = await fetch(`${API_URL}/api/whatsapp/status`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            const statusData = await statusRes.json();
+            let statusData = await statusRes.json();
 
-            if (statusData.status !== 'AUTHENTICATED' && statusData.status !== 'READY') {
+            // If connecting, wait a bit and retry
+            if (statusData.status === 'CONNECTING') {
+                showToast('WhatsApp is connecting, please wait...', 'info');
+                let retries = 0;
+                while (statusData.status === 'CONNECTING' && retries < 5) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    statusRes = await fetch(`${API_URL}/api/whatsapp/status`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    statusData = await statusRes.json();
+                    retries++;
+                }
+            }
+
+            if (statusData.status !== 'AUTHENTICATED' && statusData.status !== 'READY' && statusData.status !== 'CONNECTED') {
                 if (window.confirm('WhatsApp is not connected in Settings. Do you want to fallback to WhatsApp Web/Desktop app?')) {
                     // Fallback to original window.open logic
                     const orderDate = new Date().toLocaleDateString('en-PK');

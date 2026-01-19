@@ -86,10 +86,19 @@ export const initializeWhatsApp = async () => {
     }
 };
 
-export const getStatus = () => {
+export const getStatus = async () => {
     // Silent init ONLY if we haven't reached max retries and not already initializing
     if (status === 'DISCONNECTED' && !sock && !isInitializing && reconnectAttempts < 3) {
         initializeWhatsApp().catch(e => console.error('Silent Init Error:', e));
+    }
+
+    // If initializing, wait up to 5 seconds for status to change
+    if (isInitializing || status === 'CONNECTING') {
+        let waitCount = 0;
+        while ((isInitializing || status === 'CONNECTING') && waitCount < 10) {
+            await new Promise(r => setTimeout(r, 500));
+            waitCount++;
+        }
     }
 
     return {

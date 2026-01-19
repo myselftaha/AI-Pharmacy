@@ -7559,9 +7559,9 @@ app.post('/api/notifications', authenticateToken, async (req, res) => {
 // ==================== WHATSAPP DIRECT INTEGRATION ROUTES ====================
 
 // Get WhatsApp Status
-app.get('/api/whatsapp/status', authenticateToken, (req, res) => {
+app.get('/api/whatsapp/status', authenticateToken, async (req, res) => {
     try {
-        const result = whatsappClient.getStatus();
+        const result = await whatsappClient.getStatus();
         res.json(result);
     } catch (err) {
         console.error('[WHATSAPP] Status Error:', err);
