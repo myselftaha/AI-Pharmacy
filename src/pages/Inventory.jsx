@@ -63,11 +63,11 @@ const Inventory = () => {
 
     const fetchMedicines = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/medicines`, {
+            const response = await fetch(`${API_URL}/api/medicines?limit=1000`, { // Fetch more for overview
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
-            setMedicines(data);
+            setMedicines(data.data || []);
         } catch (error) {
             console.error('Error fetching medicines:', error);
             showToast('Failed to fetch inventory', 'error');
@@ -76,11 +76,11 @@ const Inventory = () => {
 
     const fetchSupplies = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/supplies`, {
+            const response = await fetch(`${API_URL}/api/supplies?limit=1000`, { // Fetch more for overview
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
-            setSupplies(data);
+            setSupplies(data.data || []);
         } catch (error) {
             console.error('Error fetching supplies:', error);
         }
@@ -141,7 +141,12 @@ const Inventory = () => {
             });
 
             if (response.ok) {
-                await fetchMedicines();
+                // Refresh all related data
+                await Promise.all([
+                    fetchMedicines(),
+                    fetchSupplies(),
+                    fetchEnrichedLowStock()
+                ]);
                 setIsAddModalOpen(false);
                 showToast('Product added to inventory successfully!', 'success');
             } else {
@@ -166,7 +171,12 @@ const Inventory = () => {
             });
 
             if (response.ok) {
-                await fetchMedicines();
+                // Refresh all related data
+                await Promise.all([
+                    fetchMedicines(),
+                    fetchSupplies(),
+                    fetchEnrichedLowStock()
+                ]);
                 setIsEditModalOpen(false);
                 showToast('Inventory updated successfully!', 'success');
             } else {
@@ -334,17 +344,9 @@ const Inventory = () => {
         });
     };
 
-    // Filter medicines that are IN inventory AND have corresponding Supply records
+    // Filter medicines that are IN inventory
     const inventoryItems = (Array.isArray(medicines) ? medicines : []).filter(med => {
-        const inInventory = med.inInventory === true;
-
-        // Robust supply check
-        const hasSupplyRecord = supplies.some(supply =>
-            (supply.medicineId && med.id && supply.medicineId.toString() === med.id.toString()) ||
-            (supply.medicineId && med._id && supply.medicineId.toString() === med._id.toString())
-        );
-
-        return inInventory && hasSupplyRecord;
+        return med.inInventory === true || med.stock > 0;
     });
 
     // ... (expiring and lowstock filters remain similar but use new derived data if needed)
