@@ -7,6 +7,9 @@ import PurchaseOrderModal from '../components/suppliers/PurchaseOrderModal';
 import DistributorLedgerModal from '../components/suppliers/DistributorLedgerModal';
 import DistributorDetailsModal from '../components/suppliers/DistributorDetailsModal';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
+import ConfirmationModal from '../components/common/ConfirmationModal';
+import ReceiveStockModal from '../components/suppliers/ReceiveStockModal';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 const Suppliers = () => {
     const { showToast } = useToast();
@@ -25,14 +28,41 @@ const Suppliers = () => {
     const [selectedSupplier, setSelectedSupplier] = useState(null);
     const [activeMenuId, setActiveMenuId] = useState(null);
 
+    // Tab and Pending Orders state
+    const [activeTab, setActiveTab] = useState('distributors');
+    const [pendingOrders, setPendingOrders] = useState([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
+    const [isReceiveStockOpen, setIsReceiveStockOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+    const [orderToCancel, setOrderToCancel] = useState(null);
+    const [cancellingOrder, setCancellingOrder] = useState(false);
+
     useEffect(() => {
         fetchSuppliers();
+        fetchPendingOrders();
 
         // Close menu on click outside
         const handleClickOutside = () => setActiveMenuId(null);
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
+
+    const fetchPendingOrders = async () => {
+        try {
+            setLoadingOrders(true);
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/api/purchase-orders?status=Pending`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            setPendingOrders(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error fetching pending orders:', error);
+        } finally {
+            setLoadingOrders(false);
+        }
+    };
 
     const fetchSuppliers = async () => {
         try {
@@ -129,6 +159,40 @@ const Suppliers = () => {
         setActiveMenuId(activeMenuId === supplierId ? null : supplierId);
     };
 
+    const handleReceiveOrder = (order) => {
+        setSelectedOrder(order);
+        setIsReceiveStockOpen(true);
+    };
+
+    const handleCancelOrderClick = (orderId) => {
+        setOrderToCancel(orderId);
+        setIsCancelConfirmOpen(true);
+    };
+
+    const confirmCancelOrder = async () => {
+        if (!orderToCancel) return;
+        try {
+            setCancellingOrder(true);
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/api/purchase-orders/${orderToCancel}/cancel`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                showToast('Order cancelled successfully', 'success');
+                fetchPendingOrders();
+                setIsCancelConfirmOpen(false);
+            } else {
+                showToast('Failed to cancel order', 'error');
+            }
+        } catch (error) {
+            showToast('Network error', 'error');
+        } finally {
+            setCancellingOrder(false);
+            setOrderToCancel(null);
+        }
+    };
+
     return (
         <div className="p-6 max-w-[1600px] mx-auto">
             {/* Header & Controls */}
@@ -149,13 +213,15 @@ const Suppliers = () => {
                             className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
                         />
                     </div>
-                    <button
-                        onClick={handleAddDistributor}
-                        className="flex items-center gap-2 bg-[#00c950] hover:bg-[#00b347] text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
-                    >
-                        <Plus size={20} />
-                        Add Distributor
-                    </button>
+                    {activeTab === 'distributors' && (
+                        <button
+                            onClick={handleAddDistributor}
+                            className="flex items-center gap-2 bg-[#00c950] hover:bg-[#00b347] text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all shadow-md hover:shadow-lg active:scale-95"
+                        >
+                            <Plus size={20} />
+                            Add Distributor
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -200,131 +266,238 @@ const Suppliers = () => {
                 </div>
             </div>
 
-            {/* Content Area */}
-
-            {/* Distributor Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-                {loading ? (
-                    <div className="col-span-full flex justify-center py-20">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
-                    </div>
-                ) : filteredSuppliers.length > 0 ? (
-                    filteredSuppliers.map(supplier => (
-                        <div
-                            key={supplier._id}
-                            className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 hover:shadow-md transition-all relative"
-                        >
-                            {/* Three Dots Menu */}
-                            <div className="absolute right-4 top-4">
-                                <button
-                                    onClick={(e) => toggleMenu(e, supplier._id)}
-                                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
-                                >
-                                    <MoreVertical size={20} />
-                                </button>
-
-                                {activeMenuId === supplier._id && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                                        <button
-                                            onClick={() => handleOpenDetails(supplier)}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <Eye size={16} />
-                                            View Details
-                                        </button>
-                                        <button
-                                            onClick={() => handleEditDistributor(supplier)}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <Pencil size={16} />
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenOrder(supplier)}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <ShoppingCart size={16} />
-                                            Create Order
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenLedger(supplier)}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <FileText size={16} />
-                                            View Ledger
-                                        </button>
-                                        <div className="h-px bg-gray-100 my-1"></div>
-                                        <button
-                                            onClick={() => handleDeleteDistributor(supplier)}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                        >
-                                            <Trash2 size={16} />
-                                            Delete
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Distributor Info */}
-                            <div className="mb-4">
-                                <h3 className="text-lg font-bold text-gray-900 mb-2 pr-8">{supplier.name}</h3>
-                                <div className="space-y-1.5">
-                                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                        <MapPin size={14} />
-                                        <span>{supplier.city || 'Location Not Set'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                        <Phone size={14} />
-                                        <span>{supplier.phone || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                        <Mail size={14} />
-                                        <span className="truncate">{supplier.email || 'N/A'}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Credit Days and Outstanding */}
-                            <div className="space-y-3 mb-6 pt-4 border-t border-gray-100">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500 text-sm">Credit Days</span>
-                                    <span className="text-gray-900 font-semibold">{supplier.creditDays || 30} days</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-gray-500 text-sm">Outstanding</span>
-                                    <span className={`font-bold ${supplier.totalPayable > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                        Rs {supplier.totalPayable?.toLocaleString() || 0}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => handleOpenOrder(supplier)}
-                                    className="flex items-center justify-center gap-2 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg font-medium text-sm transition-all"
-                                >
-                                    <ShoppingCart size={16} />
-                                    <span>Order</span>
-                                </button>
-                                <button
-                                    onClick={() => handleOpenLedger(supplier)}
-                                    className="flex items-center justify-center gap-2 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg font-medium text-sm transition-all"
-                                >
-                                    <FileText size={16} />
-                                    <span>Ledger</span>
-                                </button>
-                            </div>
-                        </div>
-                    ))
-                ) : (
-                    <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
-                        <Users size={64} className="mb-4 opacity-20" />
-                        <p className="text-lg font-semibold text-gray-600">No distributors found</p>
-                        <p className="text-sm">Try adjusting your search or add a new distributor.</p>
-                    </div>
-                )}
+            {/* Tab Navigation */}
+            <div className="flex border-b border-gray-200 mb-6">
+                <button
+                    onClick={() => setActiveTab('distributors')}
+                    className={`px-8 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'distributors'
+                        ? 'border-[#00c950] text-[#00c950]'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    All Distributors
+                </button>
+                <button
+                    onClick={() => setActiveTab('pendingOrders')}
+                    className={`px-8 py-3 text-sm font-bold transition-all border-b-2 flex items-center gap-2 ${activeTab === 'pendingOrders'
+                        ? 'border-[#00c950] text-[#00c950]'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Pending Orders
+                    {pendingOrders.length > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                            {pendingOrders.length}
+                        </span>
+                    )}
+                </button>
             </div>
+
+            {/* Content Area */}
+            {activeTab === 'distributors' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+                    {loading ? (
+                        <div className="col-span-full flex justify-center py-20">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
+                        </div>
+                    ) : filteredSuppliers.length > 0 ? (
+                        filteredSuppliers.map(supplier => (
+                            <div
+                                key={supplier._id}
+                                className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 hover:shadow-md transition-all relative"
+                            >
+                                {/* Three Dots Menu */}
+                                <div className="absolute right-4 top-4">
+                                    <button
+                                        onClick={(e) => toggleMenu(e, supplier._id)}
+                                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                                    >
+                                        <MoreVertical size={20} />
+                                    </button>
+
+                                    {activeMenuId === supplier._id && (
+                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                                            <button
+                                                onClick={() => handleOpenDetails(supplier)}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <Eye size={16} />
+                                                View Details
+                                            </button>
+                                            <button
+                                                onClick={() => handleEditDistributor(supplier)}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <Pencil size={16} />
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenOrder(supplier)}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <ShoppingCart size={16} />
+                                                Create Order
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenLedger(supplier)}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <FileText size={16} />
+                                                View Ledger
+                                            </button>
+                                            <div className="h-px bg-gray-100 my-1"></div>
+                                            <button
+                                                onClick={() => handleDeleteDistributor(supplier)}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                                Delete
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Distributor Info */}
+                                <div className="mb-4">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-2 pr-8">{supplier.name}</h3>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                            <MapPin size={14} />
+                                            <span>{supplier.city || 'Location Not Set'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                            <Phone size={14} />
+                                            <span>{supplier.phone || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                            <Mail size={14} />
+                                            <span className="truncate">{supplier.email || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Credit Days and Outstanding */}
+                                <div className="space-y-3 mb-6 pt-4 border-t border-gray-100">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-sm">Credit Days</span>
+                                        <span className="text-gray-900 font-semibold">{supplier.creditDays || 30} days</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-500 text-sm">Outstanding</span>
+                                        <span className={`font-bold ${supplier.totalPayable > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                            Rs {supplier.totalPayable?.toLocaleString() || 0}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => handleOpenOrder(supplier)}
+                                        className="flex items-center justify-center gap-2 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg font-medium text-sm transition-all"
+                                    >
+                                        <ShoppingCart size={16} />
+                                        <span>Order</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleOpenLedger(supplier)}
+                                        className="flex items-center justify-center gap-2 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg font-medium text-sm transition-all"
+                                    >
+                                        <FileText size={16} />
+                                        <span>Ledger</span>
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
+                            <Users size={64} className="mb-4 opacity-20" />
+                            <p className="text-lg font-semibold text-gray-600">No distributors found</p>
+                            <p className="text-sm">Try adjusting your search or add a new distributor.</p>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                /* Pending Orders View */
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100">
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Distributor</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Items</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Total Amount</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {loadingOrders ? (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-12 text-center">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#00c950]"></div>
+                                        </td>
+                                    </tr>
+                                ) : pendingOrders.length > 0 ? (
+                                    pendingOrders.map(order => (
+                                        <tr key={order._id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-bold text-gray-900">{order.distributorName}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                                    #{order._id.slice(-6).toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm text-gray-700">{new Date(order.createdAt).toLocaleDateString()}</div>
+                                                <div className="text-[10px] text-gray-400 uppercase font-bold">{new Date(order.createdAt).toLocaleTimeString()}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-sm font-bold text-gray-600">{order.items?.length || 0} items</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <span className="text-sm font-bold text-gray-900">Rs {order.total?.toLocaleString() || 0}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <button
+                                                        onClick={() => handleReceiveOrder(order)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-bold transition-all"
+                                                        title="Receive Stock"
+                                                    >
+                                                        <CheckCircle size={14} />
+                                                        Confirm
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleCancelOrderClick(order._id)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all"
+                                                        title="Cancel Order"
+                                                    >
+                                                        <XCircle size={14} />
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-20 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <Clock size={48} className="text-gray-200 mb-4" />
+                                                <p className="text-lg font-bold text-gray-400">No Pending Orders</p>
+                                                <p className="text-sm text-gray-400">All orders have been processed or cancelled.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Modals */}
             <AddDistributorModal
@@ -360,10 +533,39 @@ const Suppliers = () => {
                         isOpen={isLedgerModalOpen}
                         onClose={() => setIsLedgerModalOpen(false)}
                         supplier={selectedSupplier}
-                        onUpdate={fetchSuppliers}
+                        onUpdate={() => {
+                            fetchSuppliers();
+                            fetchPendingOrders();
+                        }}
                     />
                 </>
             )}
+
+            {/* Consolidated Actions Modals */}
+            <ReceiveStockModal
+                isOpen={isReceiveStockOpen}
+                onClose={() => setIsReceiveStockOpen(false)}
+                order={selectedOrder}
+                onSuccess={() => {
+                    fetchSuppliers();
+                    fetchPendingOrders();
+                }}
+            />
+
+            <ConfirmationModal
+                isOpen={isCancelConfirmOpen}
+                onClose={() => {
+                    setIsCancelConfirmOpen(false);
+                    setOrderToCancel(null);
+                }}
+                onConfirm={confirmCancelOrder}
+                title="Cancel Purchase Order"
+                message="Are you sure you want to cancel this order? This action set the order status to 'Cancelled' and cannot be reversed."
+                confirmText="Yes, Cancel Order"
+                cancelText="Keep Order"
+                type="danger"
+                isLoading={cancellingOrder}
+            />
         </div>
     );
 };

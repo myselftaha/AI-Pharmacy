@@ -3694,7 +3694,9 @@ app.post('/api/supplies/bulk-return', authenticateToken, async (req, res) => {
 // Get all Purchase Orders
 app.get('/api/purchase-orders', authenticateToken, async (req, res) => {
     try {
-        const orders = await PurchaseOrder.find().sort({ createdAt: -1 });
+        const { status } = req.query;
+        const filter = status ? { status } : {};
+        const orders = await PurchaseOrder.find(filter).sort({ createdAt: -1 });
         res.json(orders);
     } catch (err) {
         res.status(500).json({ message: err.message });
