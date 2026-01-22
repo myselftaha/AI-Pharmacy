@@ -33,7 +33,7 @@ const Medicines = () => {
     const [loading, setLoading] = useState(true);
 
     // Pagination State
-    const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, pages: 1 });
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
     // Initial load
@@ -87,7 +87,7 @@ const Medicines = () => {
             if (response.ok) {
                 const data = await response.json();
                 setMedicines(data.data || []);
-                setPagination(data.pagination || { page: 1, limit: 50, total: 0, pages: 1 });
+                setPagination(data.pagination || { page: 1, limit: 15, total: 0, pages: 1 });
             } else {
                 showToast('Failed to fetch medicines', 'error');
             }

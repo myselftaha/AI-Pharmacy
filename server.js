@@ -1672,7 +1672,7 @@ app.patch('/api/users/:id/reset-password', authenticateToken, authorizeRoles('Ad
 // Get all supplies (with pagination)
 app.get('/api/supplies', authenticateToken, async (req, res) => {
     try {
-        const { page = 1, limit = 50, searchQuery } = req.query;
+        const { page = 1, limit = 15, searchQuery } = req.query;
         let query = {};
 
         if (searchQuery) {
@@ -1688,11 +1688,38 @@ app.get('/api/supplies', authenticateToken, async (req, res) => {
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
 
-        const total = await Supply.countDocuments(query);
-        const supplies = await Supply.find(query)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limitNum);
+        // 1. Group by Medicine Name to count unique medicines matching search
+        const countPipeline = [
+            { $match: query },
+            { $group: { _id: { $toLower: { $trim: { input: "$name" } } } } },
+            { $count: "total" }
+        ];
+        const countResult = await Supply.aggregate(countPipeline);
+        const total = countResult.length > 0 ? countResult[0].total : 0;
+
+        // 2. Get unique medicine names for the current page
+        const nameGroupsPipeline = [
+            { $match: query },
+            {
+                $group: {
+                    _id: { $toLower: { $trim: { input: "$name" } } },
+                    lastCreated: { $max: "$createdAt" }
+                }
+            },
+            { $sort: { lastCreated: -1 } },
+            { $skip: skip },
+            { $limit: limitNum }
+        ];
+        const nameGroups = await Supply.aggregate(nameGroupsPipeline);
+        const paginatedNames = nameGroups.map(g => g._id);
+
+        // 3. Fetch all batch records for these specific medicine names
+        const supplies = await Supply.find({
+            ...query,
+            $expr: {
+                $in: [{ $toLower: { $trim: { input: "$name" } } }, paginatedNames]
+            }
+        }).sort({ createdAt: -1 });
 
         // Fetch associated medicine details for the current page
         const medIds = [...new Set(supplies.map(s => s.medicineId).filter(Boolean))];
