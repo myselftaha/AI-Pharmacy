@@ -2149,8 +2149,33 @@ app.delete('/api/supplies/:id', async (req, res) => {
     }
 });
 
+// --- PURCHASE ORDER ROUTES CONSOLIDATED AT LINE 3940 ---
 
-// Get Low Stock Medicines (Enriched with Forecasts & Supplier Info)
+
+// Single Medicine Fetch
+app.get('/api/medicines/:id', authenticateToken, async (req, res) => {
+    try {
+        let medicine;
+        if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+            medicine = await Medicine.findById(req.params.id);
+        }
+
+        if (!medicine) {
+            const numId = parseInt(req.params.id);
+            if (!isNaN(numId)) {
+                medicine = await Medicine.findOne({ id: numId });
+            }
+        }
+
+        if (!medicine) return res.status(404).json({ message: 'Medicine not found' });
+        res.json(medicine);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+
+// Get Low Stock Medicines (Enriched for Inventory)
 app.get('/api/medicines/low-stock', async (req, res) => {
     try {
         console.log("Fetching Low Stock Medicines...");
@@ -3800,8 +3825,10 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
             if (item.sellingPrice) medicine.sellingPrice = item.sellingPrice;
             if (item.mrp) medicine.mrp = item.mrp;
             medicine.packSize = packSize;
-            medicine.netContent = packSize.toString();
+            medicine.costPrice = item.unitPrice || item.costPerUnit || 0; // Cost per pack
+            medicine.supplier = supplier.name;
             if (item.formula) medicine.formulaCode = item.formula;
+            medicine.lastUpdated = new Date();
             await medicine.save({ session });
 
             // 2. Create Batch Entry
@@ -3833,16 +3860,16 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
                 name: medicine.name,
                 batchNumber: item.batchNumber,
                 supplierName: supplier.name,
-                purchaseCost: item.costPerUnit || (itemTotal / totalUnits),
+                purchaseCost: item.unitPrice || item.costPerUnit || 0, // Store cost per pack for ledger
                 purchaseInvoiceNumber: order.distributorInvoiceNumber,
                 expiryDate: new Date(item.expiryDate),
-                quantity: totalUnits,
+                quantity: receivedQty, // Store quantity in PACKS for ledger consistency
                 freeQuantity: bonusQty,
                 itemAmount: itemTotal,
                 payableAmount: itemTotal,
                 mrp: item.mrp || 0,
                 sellingPrice: item.sellingPrice || medicine.price,
-                packSize: item.packSize || 1,
+                packSize: packSize,
                 formula: item.formula || medicine.formulaCode,
                 paymentStatus: 'Unpaid',
                 paidAmount: 0,
@@ -3881,8 +3908,29 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
     }
 });
 
+// Get Single Purchase Order
+app.get('/api/purchase-orders/:id', authenticateToken, async (req, res) => {
+    try {
+        const order = await PurchaseOrder.findById(req.params.id);
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+        res.json(order);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get Supplier Purchase Orders
+app.get('/api/purchase-orders/supplier/:id', authenticateToken, async (req, res) => {
+    try {
+        const orders = await PurchaseOrder.find({ distributorId: req.params.id }).sort({ createdAt: -1 });
+        res.json(orders);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Cancel Purchase Order
-app.post('/api/purchase-orders/:id/cancel', async (req, res) => {
+app.post('/api/purchase-orders/:id/cancel', authenticateToken, async (req, res) => {
     try {
         const order = await PurchaseOrder.findById(req.params.id);
         if (!order) return res.status(404).json({ message: 'Order not found' });

@@ -102,6 +102,8 @@ const Medicines = () => {
     // Grouping Logic
     const groupedMedicines = useMemo(() => {
         const groups = {};
+        const medicineIdsAddedPerGroup = {}; // Track which medicines we've already added stock for
+
         medicines.forEach(m => {
             const nameKey = m.name?.trim().toLowerCase();
             if (!nameKey) return;
@@ -113,10 +115,21 @@ const Medicines = () => {
                     batches: [],
                     suppliers: new Set()
                 };
+                medicineIdsAddedPerGroup[nameKey] = new Set();
             }
 
             groups[nameKey].batches.push(m);
-            groups[nameKey].totalStock += (Number(m.currentStock) || 0);
+
+            // Fix: Only add currentStock to total once per unique Medicine ID in this group
+            // because every batch (supply) currently reports the FULL stock of the medicine.
+            if (m.medicineId && !medicineIdsAddedPerGroup[nameKey].has(m.medicineId.toString())) {
+                groups[nameKey].totalStock += (Number(m.currentStock) || 0);
+                medicineIdsAddedPerGroup[nameKey].add(m.medicineId.toString());
+            } else if (!m.medicineId) {
+                // Fallback for cases where medicineId might be missing (should not happen normally)
+                groups[nameKey].totalStock += (Number(m.currentStock) || 0);
+            }
+
             if (m.supplierName) groups[nameKey].suppliers.add(m.supplierName);
         });
 

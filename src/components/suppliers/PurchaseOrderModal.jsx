@@ -41,42 +41,27 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
 
     const fetchMedicines = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/supplies`, {
+            const response = await fetch(`${API_URL}/api/medicines?limit=2000`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await response.json();
 
-            // Handle both formats: direct array or paginated { data: [...] }
-            let suppliesData = [];
+            let medicinesList = [];
             if (Array.isArray(data)) {
-                suppliesData = data;
+                medicinesList = data;
             } else if (data.data && Array.isArray(data.data)) {
-                suppliesData = data.data;
+                medicinesList = data.data;
             }
 
-            // Group supplies by medicine name and keep only one per medicine
-            // Prioritize supplies with cost price info
-            const uniqueMedicines = {};
-            suppliesData.forEach(supply => {
-                const nameKey = supply.name?.trim().toLowerCase();
-                if (!nameKey) return;
+            // Convert to a standard format for the dropdown
+            const formattedMedicines = medicinesList.map(med => ({
+                _id: med._id,
+                id: med.id, // Fallback for numeric IDs
+                name: med.name,
+                costPrice: med.costPrice || med.purchasePrice || 0
+            }));
 
-                // Extract price from various possible fields
-                const price = supply.costPrice || supply.unitCost || supply.purchasePrice || supply.price || 0;
-
-                // If we don't have this medicine yet, or the new one has better pricing info
-                if (!uniqueMedicines[nameKey] ||
-                    (price > 0 && (!uniqueMedicines[nameKey].costPrice || uniqueMedicines[nameKey].costPrice === 0))) {
-                    uniqueMedicines[nameKey] = {
-                        _id: supply._id,
-                        id: supply._id,
-                        name: supply.name,
-                        costPrice: price
-                    };
-                }
-            });
-
-            setMedicines(Object.values(uniqueMedicines));
+            setMedicines(formattedMedicines);
         } catch (error) {
             console.error('Error fetching medicines:', error);
             setMedicines([]);
@@ -323,6 +308,7 @@ const PurchaseOrderModal = ({ isOpen, onClose, supplier, onSuccess }) => {
                 },
                 body: JSON.stringify({
                     distributorId: supplier._id,
+                    distributorName: supplier.name,
                     distributorInvoiceNumber: `INV-${Date.now()}`,
                     invoiceDate: new Date().toISOString(),
                     items: preparedItems,
