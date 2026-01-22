@@ -3817,21 +3817,24 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
             const packSize = Number(item.packSize) || Number(medicine.packSize) || 1;
             const totalUnits = Math.round((receivedQty + bonusQty) * packSize);
 
+            // Price Logic: unitPrice is usually "Cost per Pack" from the UI
+            const packPrice = Number(item.unitPrice) || Number(item.costPerUnit) || 0;
+            const unitPrice = packSize > 0 ? (packPrice / packSize) : packPrice;
+
             // 1. Update Medicine Master Stock and Details
             medicine.stock = Math.round((medicine.stock || 0) + totalUnits);
             medicine.inInventory = true;
-            if (item.costPerUnit) medicine.costPrice = item.costPerUnit;
-            if (item.sellingPrice) medicine.price = item.sellingPrice;
-            if (item.sellingPrice) medicine.sellingPrice = item.sellingPrice;
-            if (item.mrp) medicine.mrp = item.mrp;
             medicine.packSize = packSize;
-            medicine.costPrice = item.unitPrice || item.costPerUnit || 0; // Cost per pack
+            medicine.costPrice = packPrice; // Master record stores cost per pack
+            medicine.price = Number(item.sellingPrice) || medicine.price || 0;
+            medicine.sellingPrice = Number(item.sellingPrice) || medicine.sellingPrice || 0;
+            if (item.mrp) medicine.mrp = Number(item.mrp);
             medicine.supplier = supplier.name;
             if (item.formula) medicine.formulaCode = item.formula;
             medicine.lastUpdated = new Date();
             await medicine.save({ session });
 
-            // 2. Create Batch Entry
+            // 2. Create Batch Entry (Units-based)
             const newBatch = new Batch({
                 batchNumber: item.batchNumber,
                 medicineId: medicine._id,
@@ -3842,17 +3845,17 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
                 purchaseDate: invoiceDate || order.invoiceDate || new Date(),
                 supplierId: supplier._id,
                 supplierName: supplier.name,
-                costPrice: item.costPerUnit || item.unitPrice,
-                sellingPrice: item.sellingPrice || medicine.price || (item.unitPrice * 1.2),
-                mrp: item.mrp || 0,
-                packSize: item.packSize || 1,
+                costPrice: unitPrice, // Batch stores cost per unit
+                sellingPrice: (Number(item.sellingPrice) || medicine.price || 0) / packSize,
+                mrp: (Number(item.mrp) || 0) / packSize,
+                packSize: packSize,
                 formula: item.formula || medicine.formulaCode,
                 status: 'Active'
             });
             await newBatch.save({ session });
 
-            // 3. Create Supply Record (Ledger)
-            const itemTotal = Number(item.netItemTotal) || (receivedQty * (item.unitPrice || 0));
+            // 3. Create Supply Record (Packs-based Ledger)
+            const itemTotal = Number(item.netItemTotal) || (receivedQty * packPrice);
             finalTotalPayable += itemTotal;
 
             const newSupply = new Supply({
@@ -3860,20 +3863,21 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
                 name: medicine.name,
                 batchNumber: item.batchNumber,
                 supplierName: supplier.name,
-                purchaseCost: item.unitPrice || item.costPerUnit || 0, // Store cost per pack for ledger
-                purchaseInvoiceNumber: order.distributorInvoiceNumber,
+                purchaseCost: packPrice, // Store cost per pack for ledger
+                purchaseInvoiceNumber: order.distributorInvoiceNumber || order.invoiceNumber,
                 expiryDate: new Date(item.expiryDate),
-                quantity: receivedQty, // Store quantity in PACKS for ledger consistency
+                quantity: receivedQty, // Packs
                 freeQuantity: bonusQty,
                 itemAmount: itemTotal,
                 payableAmount: itemTotal,
-                mrp: item.mrp || 0,
-                sellingPrice: item.sellingPrice || medicine.price,
+                mrp: Number(item.mrp) || 0,
+                sellingPrice: Number(item.sellingPrice) || medicine.price,
                 packSize: packSize,
                 formula: item.formula || medicine.formulaCode,
                 paymentStatus: 'Unpaid',
                 paidAmount: 0,
-                addedDate: invoiceDate || new Date()
+                addedDate: invoiceDate || new Date(),
+                invoiceDate: invoiceDate || new Date()
             });
             await newSupply.save({ session });
 
@@ -3884,6 +3888,7 @@ app.post('/api/purchase-orders/:id/receive', authenticateToken, async (req, res)
                 order.items[poItemIndex].batchNumber = item.batchNumber;
                 order.items[poItemIndex].expiryDate = new Date(item.expiryDate);
                 order.items[poItemIndex].netItemTotal = itemTotal;
+                order.items[poItemIndex].unitPrice = packPrice;
             }
         }
 

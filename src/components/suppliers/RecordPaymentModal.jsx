@@ -101,9 +101,16 @@ const RecordPaymentModal = ({ isOpen, onClose, onSuccess, supplier }) => {
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
                     {/* Outstanding Balance Display */}
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <label className="block text-sm font-medium text-gray-600 mb-1">Outstanding Balance</label>
-                        <div className="text-2xl font-bold text-red-500">Rs {outstandingBalance.toLocaleString()}</div>
+                    <div className={`p-4 rounded-lg border transition-colors ${outstandingBalance < 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
+                        }`}>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                            {outstandingBalance < 0 ? 'Supplier Credit' : 'Outstanding Balance'}
+                        </label>
+                        <div className={`text-2xl font-bold ${outstandingBalance < 0 ? 'text-blue-600' : 'text-red-500'
+                            }`}>
+                            Rs {Math.abs(outstandingBalance).toLocaleString()}
+                            {outstandingBalance < 0 && <span className="text-sm ml-1 font-normal">(Cr)</span>}
+                        </div>
                     </div>
 
                     {/* Payment Amount */}

@@ -22,6 +22,11 @@ const DistributorLedgerModal = ({ isOpen, onClose, supplier, onUpdate }) => {
     const [orderToCancel, setOrderToCancel] = useState(null);
     const [cancelling, setCancelling] = useState(false);
 
+    // Pagination and Filtering State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const itemsPerPage = 10;
+
     const handlePaymentSuccess = () => {
         fetchLedger();
         setIsRecordPaymentOpen(false);
@@ -123,31 +128,69 @@ const DistributorLedgerModal = ({ isOpen, onClose, supplier, onUpdate }) => {
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     {/* Summary Cards */}
                     <div className="grid grid-cols-3 gap-4 mb-6">
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-between">
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                                 <span className="text-xs font-medium text-gray-600 uppercase tracking-wider">Total Purchases</span>
                             </div>
-                            <div className="text-2xl font-bold text-red-500">Rs {ledgerData?.stats?.totalPurchased?.toLocaleString() || '150,000'}</div>
+                            <div className="text-2xl font-bold text-red-500 truncate">Rs {ledgerData?.stats?.totalPurchased?.toLocaleString() || '0'}</div>
                         </div>
 
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-between">
                             <div className="flex items-center gap-2 mb-2">
                                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                 <span className="text-xs font-medium text-gray-600 uppercase tracking-wider">Total Payments</span>
                             </div>
-                            <div className="text-2xl font-bold text-green-500">Rs {ledgerData?.stats?.totalPaid?.toLocaleString() || '25,000'}</div>
+                            <div className="text-2xl font-bold text-green-500 truncate">Rs {ledgerData?.stats?.totalPaid?.toLocaleString() || '0'}</div>
                         </div>
 
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                        <div className={`bg-white p-5 rounded-lg border shadow-sm flex flex-col justify-between transition-colors ${(ledgerData?.stats?.balance || 0) < 0
+                                ? 'border-blue-200 bg-blue-50/30'
+                                : 'border-gray-200'
+                            }`}>
                             <div className="flex items-center gap-2 mb-2">
-                                <div className={`w-2 h-2 rounded-full ${(ledgerData?.stats?.balance || 0) === 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                <span className="text-xs font-medium text-gray-600 uppercase tracking-wider">Current Balance</span>
+                                <div className={`w-2 h-2 rounded-full ${(ledgerData?.stats?.balance || 0) < 0 ? 'bg-blue-500' :
+                                        (ledgerData?.stats?.balance || 0) === 0 ? 'bg-green-500' : 'bg-red-500'
+                                    }`}></div>
+                                <span className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                    {(ledgerData?.stats?.balance || 0) < 0 ? 'Current Credit' : 'Current Balance'}
+                                </span>
                             </div>
-                            <div className={`text-2xl font-bold ${(ledgerData?.stats?.balance || 0) === 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                Rs {ledgerData?.stats?.balance?.toLocaleString() || '0'}
+                            <div className={`text-2xl font-bold ${(ledgerData?.stats?.balance || 0) < 0 ? 'text-blue-600' :
+                                    (ledgerData?.stats?.balance || 0) === 0 ? 'text-green-500' : 'text-red-500'
+                                } truncate`}>
+                                Rs {Math.abs(ledgerData?.stats?.balance || 0).toLocaleString()}
+                                {(ledgerData?.stats?.balance || 0) < 0 && <span className="text-xs ml-1 font-normal">(Cr)</span>}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6 flex flex-wrap items-center gap-4 shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-semibold text-gray-500 uppercase">From:</label>
+                            <input
+                                type="date"
+                                value={dateRange.start}
+                                onChange={(e) => { setDateRange(prev => ({ ...prev, start: e.target.value })); setCurrentPage(1); }}
+                                className="text-sm border border-gray-300 rounded px-2 py-1 outline-none focus:border-blue-500"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs font-semibold text-gray-500 uppercase">To:</label>
+                            <input
+                                type="date"
+                                value={dateRange.end}
+                                onChange={(e) => { setDateRange(prev => ({ ...prev, end: e.target.value })); setCurrentPage(1); }}
+                                className="text-sm border border-gray-300 rounded px-2 py-1 outline-none focus:border-blue-500"
+                            />
+                        </div>
+                        <button
+                            onClick={() => { setDateRange({ start: '', end: '' }); setCurrentPage(1); }}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                        >
+                            Reset Filters
+                        </button>
                     </div>
 
                     {/* Tabs and Record Payment Button */}
@@ -201,128 +244,236 @@ const DistributorLedgerModal = ({ isOpen, onClose, supplier, onUpdate }) => {
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                             {activeTab === 'ledger' ? (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Debit</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Credit</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {ledgerData?.ledger?.length > 0 ? (
-                                                ledgerData.ledger.map((entry, index) => (
-                                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                                            {new Date(entry.date).toLocaleDateString()}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${entry.type === 'Invoice'
-                                                                ? 'bg-red-100 text-red-700'
-                                                                : 'bg-green-100 text-green-700'
-                                                                }`}>
-                                                                {entry.type === 'Invoice' ? 'Purchase' : 'Payment'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                                            {entry.type === 'Invoice'
-                                                                ? `Invoice #INV-2024-001 - Me...`
-                                                                : entry.note || 'Payment via Bank Transfer'}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-right font-medium text-red-500">
-                                                            {entry.type === 'Invoice' ? `Rs ${entry.amount.toLocaleString()}` : '-'}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-right font-medium text-green-600">
-                                                            {entry.type !== 'Invoice' ? `Rs ${entry.amount.toLocaleString()}` : '-'}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
-                                                            Rs {entry.runningBalance?.toLocaleString() || '0'}
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
+                                    <div className="min-h-[400px]">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50 border-b border-gray-200">
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
-                                                        <p className="text-sm font-medium">No transactions recorded</p>
-                                                    </td>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Debit</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Credit</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
                                                 </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {(() => {
+                                                    const filtered = (ledgerData?.ledger || []).filter(entry => {
+                                                        const date = new Date(entry.date);
+                                                        const start = dateRange.start ? new Date(dateRange.start) : null;
+                                                        const end = dateRange.end ? new Date(dateRange.end) : null;
+                                                        if (start && date < start) return false;
+                                                        if (end) {
+                                                            const adjustedEnd = new Date(end);
+                                                            adjustedEnd.setHours(23, 59, 59, 999);
+                                                            if (date > adjustedEnd) return false;
+                                                        }
+                                                        return true;
+                                                    });
+
+                                                    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                                                    const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                                                    if (paginated.length === 0) {
+                                                        return (
+                                                            <tr>
+                                                                <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
+                                                                    <p className="text-sm font-medium">No transactions match your filters</p>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <>
+                                                            {paginated.map((entry, index) => (
+                                                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                                        {new Date(entry.date).toLocaleDateString()}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${entry.type === 'Invoice'
+                                                                            ? 'bg-red-100 text-red-700'
+                                                                            : 'bg-green-100 text-green-700'
+                                                                            }`}>
+                                                                            {entry.type === 'Invoice' ? 'Purchase' : 'Payment'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-gray-900 max-w-[200px] truncate">
+                                                                        {entry.description || entry.note || (entry.type === 'Invoice' ? `Purchase Order Receipt` : 'Payment')}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-right font-medium text-red-500">
+                                                                        {entry.type === 'Invoice' ? `Rs ${entry.amount.toLocaleString()}` : '-'}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-right font-medium text-green-600">
+                                                                        {entry.type !== 'Invoice' ? `Rs ${entry.amount.toLocaleString()}` : '-'}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
+                                                                        Rs {entry.runningBalance?.toLocaleString() || '0'}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+
+                                                            {/* Pagination UI */}
+                                                            {totalPages > 1 && (
+                                                                <tr>
+                                                                    <td colSpan="6" className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-xs text-gray-500">
+                                                                                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} entries
+                                                                            </span>
+                                                                            <div className="flex gap-2">
+                                                                                <button
+                                                                                    disabled={currentPage === 1}
+                                                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                                                    className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-white disabled:opacity-50"
+                                                                                >
+                                                                                    Previous
+                                                                                </button>
+                                                                                <button
+                                                                                    disabled={currentPage === totalPages}
+                                                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                                    className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-white disabled:opacity-50"
+                                                                                >
+                                                                                    Next
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 border-b border-gray-200">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Order #</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Items</th>
-                                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                                                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
-                                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {purchaseOrders.length > 0 ? (
-                                                purchaseOrders.map((order, index) => (
-                                                    <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                                                            #{order._id?.slice(-6).toUpperCase()}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                                            {new Date(order.createdAt).toLocaleDateString()}
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                                            {order.items?.length || 0} items
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${order.status === 'Received' ? 'bg-green-100 text-green-700' :
-                                                                order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                                                                    'bg-amber-100 text-amber-700'
-                                                                }`}>
-                                                                {order.status || 'Pending'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
-                                                            Rs {order.total?.toLocaleString() || 0}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                {order.status === 'Pending' && (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => handleReceiveOrder(order)}
-                                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                                            title="Receive Stock"
-                                                                        >
-                                                                            <CheckCircle size={18} />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => handleCancelOrderClick(order._id)}
-                                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                            title="Cancel Order"
-                                                                        >
-                                                                            <XCircle size={18} />
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
+                                    <div className="min-h-[400px]">
+                                        <table className="w-full">
+                                            <thead className="bg-gray-50 border-b border-gray-200">
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
-                                                        <p className="text-sm font-medium">No purchase orders found</p>
-                                                    </td>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Order #</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Items</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Total</th>
+                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                                                 </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {(() => {
+                                                    const filtered = purchaseOrders.filter(order => {
+                                                        const date = new Date(order.createdAt);
+                                                        const start = dateRange.start ? new Date(dateRange.start) : null;
+                                                        const end = dateRange.end ? new Date(dateRange.end) : null;
+                                                        if (start && date < start) return false;
+                                                        if (end) {
+                                                            const adjustedEnd = new Date(end);
+                                                            adjustedEnd.setHours(23, 59, 59, 999);
+                                                            if (date > adjustedEnd) return false;
+                                                        }
+                                                        return true;
+                                                    });
+
+                                                    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                                                    const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                                                    if (paginated.length === 0) {
+                                                        return (
+                                                            <tr>
+                                                                <td colSpan="6" className="px-6 py-12 text-center text-gray-400">
+                                                                    <p className="text-sm font-medium">No orders match your filters</p>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <>
+                                                            {paginated.map((order, index) => (
+                                                                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                                                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                                                        #{order._id?.slice(-6).toUpperCase()}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                                        {new Date(order.createdAt).toLocaleDateString()}
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                                                        {order.items?.length || 0} items
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${order.status === 'Received' ? 'bg-green-100 text-green-700' :
+                                                                            order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                                                'bg-amber-100 text-amber-700'
+                                                                            }`}>
+                                                                            {order.status || 'Pending'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-sm text-right font-semibold text-gray-900">
+                                                                        Rs {order.total?.toLocaleString() || 0}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="flex items-center justify-center gap-2">
+                                                                            {order.status === 'Pending' && (
+                                                                                <>
+                                                                                    <button
+                                                                                        onClick={() => handleReceiveOrder(order)}
+                                                                                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                                        title="Receive Stock"
+                                                                                    >
+                                                                                        <CheckCircle size={18} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleCancelOrderClick(order._id)}
+                                                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                                        title="Cancel Order"
+                                                                                    >
+                                                                                        <XCircle size={18} />
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+
+                                                            {/* Pagination UI */}
+                                                            {totalPages > 1 && (
+                                                                <tr>
+                                                                    <td colSpan="6" className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-xs text-gray-500">
+                                                                                Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} entries
+                                                                            </span>
+                                                                            <div className="flex gap-2">
+                                                                                <button
+                                                                                    disabled={currentPage === 1}
+                                                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                                                    className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-white disabled:opacity-50"
+                                                                                >
+                                                                                    Previous
+                                                                                </button>
+                                                                                <button
+                                                                                    disabled={currentPage === totalPages}
+                                                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                                    className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-white disabled:opacity-50"
+                                                                                >
+                                                                                    Next
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
                         </div>
